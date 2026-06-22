@@ -1,15 +1,2544 @@
 <!DOCTYPE html>
-
 <html lang="es">
 <head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Extraccion Etiquetas MercadoLibre</title>
-<link href="https://fonts.googleapis.com" rel="preconnect"/>
-<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
-<link data-app-stylesheet="" href="styles.css" rel="stylesheet"/>
-<style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extraccion Etiquetas MercadoLibre</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style data-app-stylesheet data-inline-source="styles.css">
+:root {
+            --primary: #00B34D;
+            --primary-dark: #008A3B;
+            --bg-color: #F4F8F4;
+            --panel-bg: rgba(255, 255, 255, 0.84);
+            --surface-base: rgba(255, 255, 255, 0.92);
+            --surface-soft: rgba(248, 251, 248, 0.78);
+            --border: rgba(15, 23, 42, 0.10);
+            --text: #17301F;
+            --text-muted: #5C6F63;
+            --success: #0E9F6E;
+            --error: #EF4444;
+            --space-1: 0.25rem;
+            --space-2: 0.5rem;
+            --space-3: 0.75rem;
+            --space-4: 1rem;
+            --space-5: 1.25rem;
+            --space-6: 1.5rem;
+            --space-7: 2rem;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --panel-padding: clamp(var(--space-5), 2vw, 1.75rem);
+            --card-padding: var(--space-4);
+            --shadow-panel: 0 18px 45px rgba(15, 23, 42, 0.10);
+            --shadow-soft: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: clamp(var(--space-6), 4vw, 3rem) var(--space-5) 3rem;
+            background-image: radial-gradient(circle at top right, rgba(0, 179, 77, 0.16), transparent 420px),
+                              radial-gradient(circle at bottom left, rgba(255, 214, 102, 0.18), transparent 320px),
+                              linear-gradient(180deg, #FBFDFB 0%, #EEF4EF 100%);
+        }
+
+        .container {
+            width: min(100%, 1440px);
+            margin: 0 auto;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-6);
+        }
+
+        .panels-container {
+            width: 100%;
+            display: grid;
+            grid-template-columns: minmax(480px, 600px) minmax(680px, 800px);
+            justify-content: center;
+            gap: var(--space-6);
+            align-items: start;
+        }
+
+        .panels-container > .panel {
+            width: 100%;
+            min-width: 0;
+        }
+
+        @media (max-width: 1180px) {
+            .panels-container {
+                grid-template-columns: minmax(0, 1fr);
+                max-width: 860px;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .panels-container {
+                grid-template-columns: 1fr;
+            }
+
+            .panel-left {
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "picker"
+                    "input"
+                    "history";
+            }
+        }
+
+        header {
+            text-align: center;
+            width: 100%;
+            max-width: 860px;
+            margin: 0 auto;
+            display: grid;
+            justify-items: center;
+            gap: var(--space-3);
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin: 0;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: -0.5px;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 640px;
+            margin: 0;
+        }
+
+        .app-logo {
+            max-height: 80px;
+            margin: 0;
+        }
+
+        .message-stack {
+            position: fixed;
+            bottom: clamp(0.85rem, 2vw, 1.25rem);
+            right: clamp(0.85rem, 2vw, 1.25rem);
+            width: min(360px, calc(100vw - 1.5rem));
+            max-width: 100%;
+            display: grid;
+            gap: 0.65rem;
+            z-index: 2200;
+            pointer-events: none;
+        }
+
+        .message-stack:empty {
+            display: none;
+        }
+
+        .app-message {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 0.9rem;
+            align-items: start;
+            padding: 0.88rem 0.95rem;
+            border-radius: 14px;
+            border: 1px solid transparent;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+            backdrop-filter: blur(12px);
+            pointer-events: auto;
+            opacity: 0;
+            transform: translateY(10px) scale(0.98);
+            transition: opacity 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease;
+            will-change: transform, opacity;
+        }
+
+        .app-message.is-visible {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        .app-message.is-leaving {
+            opacity: 0;
+            transform: translateY(8px) scale(0.98);
+        }
+
+        .app-message.is-info {
+            background: rgba(255, 255, 255, 0.96);
+            border-color: rgba(15, 23, 42, 0.08);
+        }
+
+        .app-message.is-success {
+            background: rgba(16, 185, 129, 0.14);
+            border-color: rgba(16, 185, 129, 0.24);
+        }
+
+        .app-message.is-warning {
+            background: rgba(245, 158, 11, 0.16);
+            border-color: rgba(245, 158, 11, 0.26);
+        }
+
+        .app-message.is-error {
+            background: rgba(239, 68, 68, 0.14);
+            border-color: rgba(239, 68, 68, 0.26);
+        }
+
+        .app-message-content {
+            min-width: 0;
+            display: grid;
+            gap: 0.2rem;
+        }
+
+        .app-message-content strong {
+            font-size: 0.84rem;
+            color: var(--text);
+        }
+
+        .app-message-text {
+            color: var(--text);
+            font-size: 0.84rem;
+            line-height: 1.45;
+            white-space: pre-line;
+        }
+
+        .app-message-close {
+            width: 30px;
+            height: 30px;
+            border-radius: 999px;
+            border: 1px solid rgba(15, 23, 42, 0.10);
+            background: rgba(255, 255, 255, 0.7);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+        }
+
+        .app-message-close:hover {
+            background: rgba(255, 255, 255, 0.95);
+            color: var(--text);
+            transform: translateY(-1px);
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--panel-padding);
+            box-shadow: var(--shadow-panel);
+        }
+
+        .panel-left {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(220px, 255px);
+            grid-template-areas:
+                "picker history"
+                "input history";
+            gap: var(--space-4);
+            align-items: start;
+            align-content: start;
+        }
+
+        .left-panel-top {
+            display: contents;
+        }
+
+        .panel-left .input-group {
+            margin-bottom: 0;
+            grid-area: picker;
+            min-width: 0;
+        }
+
+        .panel-left .input-methods {
+            margin-top: 0;
+            grid-area: input;
+            min-width: 0;
+        }
+
+        .panel-left .storage-card {
+            grid-area: history;
+            margin-top: 0;
+            padding: var(--space-3);
+            gap: var(--space-2);
+            width: 100%;
+            max-width: none;
+            min-width: 0;
+            justify-self: stretch;
+        }
+
+        .panels-container > .order-lookup-card {
+            margin-top: 0;
+        }
+
+        .left-panel-top .storage-header {
+            gap: var(--space-2);
+        }
+
+        .left-panel-top .storage-header h3 {
+            font-size: 0.84rem;
+            margin: 0;
+        }
+
+        .left-panel-top .storage-header p,
+        .left-panel-top .history-empty {
+            font-size: 0.72rem;
+            line-height: 1.25;
+        }
+
+        .left-panel-top .storage-note {
+            display: none;
+        }
+
+        .left-panel-top .status-pill {
+            min-width: 0;
+            max-width: 100%;
+            padding: 0.22rem 0.42rem;
+        }
+
+        .left-panel-top .storage-toggle-btn {
+            min-width: 30px;
+            height: 22px;
+            padding: 0 0.42rem;
+            font-size: 0.55rem;
+        }
+
+        .left-panel-top .history-list {
+            gap: 0.35rem;
+            max-height: 160px;
+        }
+
+        .left-panel-top .history-item {
+            padding: 0.45rem 0.55rem;
+            border-radius: 8px;
+        }
+
+        .left-panel-top .history-item strong {
+            font-size: 0.76rem;
+        }
+
+        .left-panel-top .history-item span {
+            font-size: 0.68rem;
+            margin-top: 0.1rem;
+        }
+
+        .left-panel-top .history-type-row {
+            gap: 0.28rem;
+        }
+
+        .left-panel-top .history-type-row .history-type-badge,
+        .left-panel-top .history-type-row .history-type-meta {
+            margin-top: 0;
+        }
+
+        .left-panel-top .history-type-row .history-type-badge {
+            font-size: 0.58rem;
+        }
+
+        .left-panel-top .history-type-row .history-type-meta {
+            font-size: 0.62rem;
+        }
+
+        .left-panel-top .history-actions {
+            gap: 0.35rem;
+        }
+
+        .left-panel-top .btn-small {
+            padding: 0.45rem 0.6rem;
+            font-size: 0.74rem;
+            flex: 1 1 90px;
+        }
+
+        .input-group {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: var(--space-6);
+            margin-bottom: 0;
+        }
+
+        .form-control {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
+        }
+
+        .picker-select-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 0.55rem;
+            align-items: stretch;
+        }
+
+        .picker-meta,
+        .picker-manager-note {
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            line-height: 1.35;
+        }
+
+        .picker-meta {
+            margin-top: 0;
+            text-align: right;
+        }
+
+        .picker-manage-btn {
+            width: 24px;
+            height: 24px;
+            min-width: 24px;
+            max-width: 24px;
+            padding: 0;
+            flex: 0 0 24px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 179, 77, 0.20);
+            background: rgba(0, 179, 77, 0.12);
+            color: #0B7A3D;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+            font-size: 0.78rem;
+            font-weight: 700;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .picker-manage-btn:hover {
+            background: rgba(0, 179, 77, 0.18);
+            border-color: rgba(0, 179, 77, 0.32);
+            color: #075B2D;
+            transform: translateY(-1px);
+        }
+
+        .picker-manage-btn.is-active {
+            border-color: rgba(0, 179, 77, 0.36);
+            background: rgba(0, 179, 77, 0.24);
+            color: #064F26;
+        }
+
+        .picker-manager {
+            margin-top: 0;
+            padding: var(--card-padding);
+            border: 1px solid rgba(67, 190, 116, 0.14);
+            border-radius: var(--radius-md);
+            background: linear-gradient(180deg, rgba(250, 253, 250, 0.98), rgba(241, 247, 242, 0.98));
+            box-shadow: var(--shadow-soft);
+            display: grid;
+            gap: var(--space-3);
+        }
+
+        .picker-manager[hidden] {
+            display: none;
+        }
+
+        .picker-manager-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: var(--space-3);
+        }
+
+        .picker-manager-header > div {
+            display: grid;
+            gap: var(--space-1);
+        }
+
+        .picker-manager-header strong {
+            display: block;
+            font-size: 0.86rem;
+            color: var(--text);
+        }
+
+        .picker-manager-header > div span {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            line-height: 1.35;
+        }
+
+        .picker-manager-count,
+        .picker-list-total {
+            min-width: 30px;
+            height: 30px;
+            padding: 0 0.55rem;
+            border-radius: 999px;
+            background: rgba(0, 179, 77, 0.14);
+            border: 1px solid rgba(0, 179, 77, 0.2);
+            color: var(--primary);
+            font-size: 0.74rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .picker-manager-top {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 0.55rem;
+        }
+
+        .picker-manager-top input[type="text"] {
+            padding: 0.7rem 0.85rem;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid rgba(15, 23, 42, 0.10);
+            color: var(--text);
+            font-size: 0.86rem;
+        }
+
+        .picker-add-btn {
+            min-height: 38px;
+            padding: 0 0.85rem;
+            border-radius: 10px;
+            font-size: 0.8rem;
+        }
+
+        .picker-list-wrap {
+            display: grid;
+            gap: var(--space-3);
+            padding: var(--space-3);
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            background: rgba(255, 255, 255, 0.68);
+        }
+
+        .picker-list-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .picker-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            max-height: 185px;
+            overflow-y: auto;
+        }
+
+        .picker-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0.52rem 0.65rem;
+            border-radius: 12px;
+            border: 1px solid rgba(15, 23, 42, 0.06);
+            background: rgba(255, 255, 255, 0.92);
+        }
+
+        .picker-row-main {
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+            flex: 1 1 auto;
+        }
+
+        .picker-row-badge {
+            width: 30px;
+            height: 30px;
+            border-radius: 999px;
+            background: rgba(0, 179, 77, 0.14);
+            color: var(--primary);
+            font-size: 0.78rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+        }
+
+        .picker-row-info {
+            min-width: 0;
+            display: block;
+        }
+
+        .picker-row strong {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .picker-remove-btn {
+            flex: 0 0 auto;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border-radius: 10px;
+            border: 1px solid rgba(239, 68, 68, 0.20);
+            background: rgba(239, 68, 68, 0.08);
+            color: #B42318;
+            font-size: 0.88rem;
+            font-weight: 700;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .picker-remove-btn:hover {
+            background: rgba(239, 68, 68, 0.14);
+        }
+
+        .picker-empty {
+            color: var(--text-muted);
+            font-size: 0.76rem;
+            padding: 0.95rem 0.8rem;
+            text-align: center;
+            border-radius: 10px;
+            border: 1px dashed rgba(15, 23, 42, 0.10);
+            background: rgba(248, 250, 248, 0.88);
+        }
+
+        label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="text"], select {
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid var(--border);
+            padding: 1rem;
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            appearance: none;
+            width: 100%;
+            box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(0, 179, 77, 0.2);
+        }
+        
+        select option {
+            background: #FFFFFF;
+            color: #17301F;
+        }
+
+        .input-methods {
+            position: relative;
+            margin-top: 0;
+            display: grid;
+            gap: var(--space-4);
+        }
+
+        .method-card {
+            background: var(--surface-soft);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-6);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-4);
+            box-shadow: var(--shadow-soft);
+        }
+
+        .method-card h3 {
+            font-size: 1rem;
+            color: var(--text);
+            margin: 0;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .input-methods .method-card:first-child {
+            position: absolute;
+            top: 0.25rem;
+            right: 1rem;
+            z-index: 2;
+            background: transparent;
+            border: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            box-shadow: none;
+        }
+
+        .input-methods .method-card:first-child h3 {
+            display: none;
+        }
+
+        .input-methods .method-card:last-child {
+            padding-top: 1.25rem;
+            min-height: 228px;
+        }
+
+        .order-lookup-card {
+            margin-top: 0;
+            background: var(--surface-soft);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--card-padding);
+            display: grid;
+            gap: var(--space-4);
+        }
+
+        .order-lookup-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: var(--space-3);
+        }
+
+        .order-lookup-head-copy {
+            min-width: 0;
+            display: grid;
+            gap: 0;
+        }
+
+        .order-lookup-head h3 {
+            font-size: 0.93rem;
+            color: var(--text);
+            margin: 0;
+            text-align: left;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+        }
+
+        .order-lookup-head p {
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            line-height: 1.35;
+            max-width: 70ch;
+        }
+
+        .order-lookup-channel {
+            flex: 0 0 auto;
+            align-self: flex-start;
+            padding: 0.34rem 0.58rem;
+            border-radius: 999px;
+            border: 1px solid rgba(0, 179, 77, 0.16);
+            background: rgba(0, 179, 77, 0.07);
+            color: #0B7A3D;
+            font-size: 0.67rem;
+            font-weight: 700;
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        .order-lookup-controls {
+            display: grid;
+            gap: var(--space-3);
+            padding: var(--card-padding);
+            border: 1px solid rgba(15, 23, 42, 0.06);
+            border-radius: var(--radius-md);
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .order-lookup-output {
+            display: grid;
+            gap: 0.6rem;
+        }
+
+        .order-lookup-upload-row,
+        .order-lookup-filter-row {
+            display: grid;
+            gap: 0.6rem;
+            min-width: 0;
+        }
+
+        .order-lookup-upload-row {
+            grid-template-columns: minmax(132px, 156px) minmax(0, 1fr);
+            align-items: center;
+        }
+
+        .order-lookup-filter-row {
+            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-areas:
+                "search search"
+                "state actions";
+            align-items: end;
+            gap: 0.75rem;
+        }
+
+        .order-lookup-search-field,
+        .order-lookup-filter-field {
+            display: grid;
+            gap: 0.26rem;
+            min-width: 0;
+        }
+
+        .order-lookup-search-field {
+            grid-area: search;
+        }
+
+        .order-lookup-filter-field {
+            grid-area: state;
+        }
+
+        .order-lookup-search-field span,
+        .order-lookup-filter-field span {
+            color: var(--text-muted);
+            font-size: 0.64rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            line-height: 1;
+        }
+
+        .order-lookup-filter-field.is-compact {
+            max-width: 220px;
+            justify-self: start;
+        }
+
+        .order-lookup-actions {
+            grid-area: actions;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(122px, 1fr));
+            align-items: end;
+            gap: 0.5rem;
+            justify-content: end;
+            align-self: end;
+            padding-top: 0;
+        }
+
+        .order-lookup-card .btn {
+            width: auto;
+            padding: 0.76rem 0.96rem;
+            border-radius: 9px;
+            font-size: 0.83rem;
+            line-height: 1;
+            white-space: nowrap;
+            min-height: 42px;
+        }
+
+        .order-lookup-actions .btn {
+            width: 100%;
+            min-width: 122px;
+        }
+
+        .order-lookup-file {
+            min-width: 0;
+            padding: 0.72rem 0.8rem;
+            border-radius: 9px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.96);
+            color: var(--text-muted);
+            font-size: 0.73rem;
+            line-height: 1.2;
+            min-height: 42px;
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .order-lookup-search-input,
+        .order-lookup-filter-field select {
+            background: rgba(255, 255, 255, 0.98);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            color: var(--text);
+            width: 100%;
+            min-width: 0;
+            font-size: 0.84rem;
+            min-height: 42px;
+        }
+
+        .order-lookup-search-input {
+            padding: 0.78rem 0.85rem;
+        }
+
+        .order-lookup-filter-field.is-compact select {
+            min-height: 38px;
+            padding: 0.58rem 0.8rem;
+            font-size: 0.8rem;
+        }
+
+        .order-lookup-search-input:focus,
+        .order-lookup-filter-field select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(0, 179, 77, 0.18);
+        }
+
+        .order-lookup-summary {
+            border-radius: 10px;
+            border: 1px solid rgba(0, 179, 77, 0.12);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 0.58rem 0.68rem;
+            display: grid;
+            gap: 0.24rem;
+        }
+
+        .order-lookup-summary strong {
+            color: var(--text);
+            font-size: 0.76rem;
+            line-height: 1.15;
+        }
+
+        .order-lookup-summary span {
+            color: var(--text-muted);
+            font-size: 0.68rem;
+            line-height: 1.25;
+        }
+
+        .order-lookup-summary.is-empty {
+            border-color: var(--border);
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .order-lookup-summary.is-warning {
+            border-color: rgba(234, 179, 8, 0.24);
+            background: rgba(250, 250, 235, 0.96);
+        }
+
+        .order-lookup-table-wrap {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.94);
+            overflow: auto;
+            max-height: 176px;
+        }
+
+        .order-lookup-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .order-lookup-table th,
+        .order-lookup-table td {
+            padding: 0.58rem 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+            font-size: 0.76rem;
+        }
+
+        .order-lookup-table th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: rgba(244, 247, 244, 0.98);
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .order-lookup-table td:first-child {
+            font-weight: 600;
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .order-lookup-table td:last-child {
+            color: #0B7A3D;
+            font-weight: 600;
+        }
+
+        .order-lookup-table tbody tr:nth-child(even) {
+            background: rgba(248, 251, 248, 0.78);
+        }
+
+        .order-lookup-table tbody tr:hover {
+            background: rgba(0, 179, 77, 0.05);
+        }
+
+        .order-lookup-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .order-lookup-empty-row {
+            color: var(--text-muted);
+            text-align: center;
+            font-size: 0.73rem;
+            padding: 0.9rem 0.78rem;
+        }
+
+        .dropzone {
+            width: 38px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: rgba(0, 179, 77, 0.12);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .dropzone::before {
+            content: "+";
+            color: var(--primary);
+            font-size: 1.35rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .dropzone:hover, .dropzone.dragover {
+            background: rgba(0, 179, 77, 0.2);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .dropzone svg,
+        .dropzone p,
+        .dropzone span {
+            display: none;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        textarea {
+            background: rgba(255, 255, 255, 0.97);
+            border: 1px solid var(--border);
+            padding: 1rem;
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-size: 0.85rem;
+            resize: none;
+            flex-grow: 1;
+            transition: all 0.3s ease;
+            font-family: monospace;
+            min-height: 160px;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(0, 179, 77, 0.2);
+        }
+
+        .storage-card {
+            margin-top: 0;
+            background: rgba(250, 252, 250, 0.88);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--card-padding);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+            box-shadow: var(--shadow-soft);
+        }
+
+        .storage-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: var(--space-3);
+        }
+
+        .storage-header > div:first-child {
+            min-width: 0;
+            display: grid;
+            gap: var(--space-1);
+        }
+
+        .storage-header-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            flex-shrink: 0;
+        }
+
+        .storage-header h3 {
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: var(--text);
+            margin: 0;
+        }
+
+        .storage-header p,
+        .storage-note,
+        .results-meta,
+        .history-empty {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            line-height: 1.35;
+        }
+
+        #storageSummary {
+            font-size: 0.7rem;
+            line-height: 1.2;
+        }
+
+        .status-pill {
+            border-radius: 999px;
+            padding: 0.28rem 0.5rem;
+            font-size: 0.66rem;
+            font-weight: 700;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            line-height: 1;
+            max-width: 100%;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .storage-toggle-btn {
+            min-width: 34px;
+            height: 26px;
+            padding: 0 0.5rem;
+            border-radius: 999px;
+            border: 1px solid rgba(15, 23, 42, 0.10);
+            background: rgba(255, 255, 255, 0.72);
+            color: var(--text-muted);
+            font-size: 0.6rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            line-height: 1;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+        }
+
+        .storage-toggle-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.95);
+            border-color: rgba(0, 179, 77, 0.18);
+            color: var(--text);
+            transform: translateY(-1px);
+        }
+
+        .storage-toggle-btn:focus-visible {
+            outline: none;
+            border-color: rgba(0, 179, 77, 0.36);
+            box-shadow: 0 0 0 3px rgba(0, 179, 77, 0.14);
+        }
+
+        .storage-toggle-btn.is-active {
+            background: rgba(0, 179, 77, 0.12);
+            border-color: rgba(0, 179, 77, 0.24);
+            color: #0B7A3D;
+        }
+
+        .storage-toggle-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-pill-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: currentColor;
+            box-shadow: 0 0 0 0 currentColor;
+            flex-shrink: 0;
+        }
+
+        .status-pill-content {
+            display: grid;
+            grid-template-columns: auto auto minmax(0, 1fr);
+            align-items: center;
+            gap: 0.28rem;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .status-pill-label {
+            font-size: 0.5rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            opacity: 0.82;
+            white-space: nowrap;
+        }
+
+        .status-pill-time {
+            font-size: 0.7rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            font-family: Consolas, Monaco, monospace;
+            letter-spacing: -0.02em;
+            white-space: nowrap;
+        }
+
+        .status-pill-meta {
+            font-size: 0.5rem;
+            font-weight: 600;
+            opacity: 0.8;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .status-pill.is-open {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
+
+        .status-pill.is-extended {
+            background: rgba(0, 179, 77, 0.14);
+            color: #0B7A3D;
+            border: 1px solid rgba(0, 179, 77, 0.24);
+        }
+
+        .status-pill.is-closed {
+            background: rgba(239, 68, 68, 0.12);
+            color: #B42318;
+            border: 1px solid rgba(239, 68, 68, 0.25);
+        }
+
+        .status-pill.is-disabled {
+            background: rgba(156, 163, 175, 0.12);
+            color: #667085;
+            border: 1px solid rgba(156, 163, 175, 0.25);
+        }
+
+        .status-pill.is-open .status-pill-dot {
+            animation: statusPulse 1.5s infinite;
+        }
+
+        .status-pill.is-closed .status-pill-dot,
+        .status-pill.is-disabled .status-pill-dot {
+            opacity: 0.8;
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            max-height: 150px;
+            overflow-y: auto;
+            padding-right: 0.15rem;
+        }
+
+        .history-item {
+            appearance: none;
+            width: 100%;
+            text-align: left;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            border-radius: 9px;
+            padding: 0.65rem 0.75rem;
+            background: rgba(255, 255, 255, 0.92);
+            cursor: pointer;
+            transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .history-item:hover {
+            border-color: rgba(0, 179, 77, 0.18);
+            background: rgba(247, 252, 248, 0.96);
+            transform: translateY(-1px);
+        }
+
+        .history-item:focus-visible {
+            outline: none;
+            border-color: rgba(0, 179, 77, 0.34);
+            box-shadow: 0 0 0 3px rgba(0, 179, 77, 0.14);
+        }
+
+        .history-item.is-selected {
+            border-color: rgba(0, 179, 77, 0.3);
+            background: rgba(0, 179, 77, 0.10);
+            box-shadow: 0 10px 18px rgba(0, 179, 77, 0.08);
+        }
+
+        .history-item strong {
+            display: block;
+            font-size: 0.82rem;
+            color: var(--text);
+        }
+
+        .history-item span {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.74rem;
+            margin-top: 0.15rem;
+        }
+
+        .history-type-row {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            flex-wrap: wrap;
+            margin-top: 0.3rem;
+        }
+
+        .history-type-row .history-type-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.16rem 0.42rem;
+            border-radius: 999px;
+            font-size: 0.62rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            margin-top: 0;
+        }
+
+        .history-type-row .history-type-meta {
+            display: inline-block;
+            color: var(--text-muted);
+            font-size: 0.68rem;
+            font-weight: 600;
+            margin-top: 0;
+        }
+
+        .history-type-badge.is-flex {
+            background: rgba(0, 179, 77, 0.12);
+            color: #0B7A3D;
+            border: 1px solid rgba(0, 179, 77, 0.2);
+        }
+
+        .history-type-badge.is-colecta {
+            background: rgba(14, 165, 233, 0.12);
+            color: #0B6A88;
+            border: 1px solid rgba(14, 165, 233, 0.2);
+        }
+
+        .history-type-badge.is-mixto {
+            background: rgba(245, 158, 11, 0.14);
+            color: #9A6700;
+            border: 1px solid rgba(245, 158, 11, 0.22);
+        }
+
+        .history-type-badge.is-sin-tipo {
+            background: rgba(148, 163, 184, 0.14);
+            color: #475467;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .history-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: var(--space-2);
+        }
+
+        .btn-small {
+            width: 100%;
+            padding: 0.65rem 0.85rem;
+            font-size: 0.82rem;
+            flex: none;
+        }
+
+        #savePortableBtn {
+            grid-column: 1 / -1;
+        }
+
+        .dropzone.is-disabled,
+        .btn.is-disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            pointer-events: none;
+            transform: none;
+        }
+
+        #results {
+            display: block;
+            animation: fadeIn 0.5s ease;
+            width: 100%;
+            min-width: 0;
+        }
+
+        .results-shell {
+            display: grid;
+            gap: var(--space-4);
+        }
+
+        .results-toolbar {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: var(--space-4);
+            align-items: center;
+            margin-bottom: 0;
+        }
+
+        .results-search-group {
+            display: grid;
+            grid-template-columns: minmax(380px, 1fr) auto;
+            gap: var(--space-3);
+            align-items: center;
+            min-width: 0;
+        }
+
+        .results-history-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 148px);
+            gap: 0.35rem;
+            align-items: center;
+            margin-left: 0.35rem;
+        }
+
+        .results-history-btn {
+            flex: 0 0 auto;
+            width: 148px;
+            height: 38px;
+            min-height: 38px;
+            min-width: 148px;
+            border: 1px solid var(--border);
+            padding: 0 0.52rem;
+            background: rgba(255, 255, 255, 0.96);
+            color: var(--text);
+            border-radius: 9px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            line-height: 1;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .results-history-btn:hover:not(:disabled) {
+            background: #F4F7F5;
+            color: var(--text);
+        }
+
+        #showStoredBtn {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+
+        #showStoredBtn:hover:not(:disabled) {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+            color: #fff;
+        }
+
+        .results-history-btn:disabled {
+            background: rgba(255, 255, 255, 0.72);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            opacity: 0.72;
+        }
+
+        .label-source-tabs {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.45rem;
+            align-items: center;
+            padding: 0.28rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: rgba(248, 251, 248, 0.72);
+        }
+
+        .label-source-tab {
+            appearance: none;
+            height: 34px;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .label-source-tab:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.78);
+        }
+
+        .label-source-tab.is-active {
+            background: #fff;
+            border-color: rgba(0, 179, 77, 0.22);
+            color: var(--primary-dark);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+        }
+
+        .search-input {
+            background: rgba(255, 255, 255, 0.97);
+            border: 1px solid var(--border);
+            padding: 0.85rem 1rem;
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-size: 0.95rem;
+            width: 100%;
+            min-width: 380px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(0, 179, 77, 0.2);
+        }
+
+        .selection-hint {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-align: right;
+        }
+
+        .results-meta {
+            margin-bottom: 0;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: var(--space-3);
+            align-items: stretch;
+            margin-bottom: 0;
+            padding-bottom: var(--space-4);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .stat-item {
+            appearance: none;
+            background: rgba(248, 251, 248, 0.72);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-3);
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+            display: grid;
+            gap: var(--space-1);
+            justify-items: center;
+            align-content: center;
+            min-height: 96px;
+        }
+
+        .stat-item:hover {
+            transform: translateY(-1px);
+            border-color: rgba(0, 179, 77, 0.18);
+            background: rgba(0, 179, 77, 0.05);
+        }
+
+        .stat-item:focus-visible {
+            outline: none;
+            border-color: rgba(0, 179, 77, 0.4);
+            box-shadow: 0 0 0 3px rgba(0, 179, 77, 0.16);
+        }
+
+        .stat-item.is-active {
+            border-color: rgba(0, 179, 77, 0.3);
+            background: rgba(0, 179, 77, 0.1);
+            box-shadow: 0 10px 22px rgba(0, 179, 77, 0.08);
+        }
+
+        .stat-item.is-dimmed {
+            opacity: 0.72;
+        }
+
+        .stat-item--carrier .stat-value {
+            color: #1253A4;
+        }
+
+        .stat-item--carrier:nth-of-type(5) .stat-value {
+            color: #0B57D0;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .btn {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 0.95rem 1.25rem;
+            border-radius: var(--radius-sm);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
+        }
+
+        .btn-compact {
+            padding: 0.75rem;
+        }
+
+        .btn-gap-top {
+            margin-top: 0;
+        }
+
+        .btn-gap-small {
+            margin-top: 0;
+        }
+
+        .btn-zebra {
+            background-color: #000;
+            color: #fff;
+            border: 1px solid var(--border);
+        }
+
+        .btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #E6ECE8;
+            color: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .is-hidden {
+            display: none !important;
+        }
+
+        .btn-secondary {
+            background: #EEF2EF;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            background: #E3EAE5;
+        }
+
+        .btn.picker-remove-btn {
+            width: 24px;
+            min-width: 24px;
+            max-width: 24px;
+            height: 24px;
+            padding: 0;
+            flex: 0 0 24px;
+            gap: 0;
+            border-radius: 8px;
+            font-size: 0.78rem;
+        }
+
+        .table-container {
+            max-height: 250px;
+            overflow-y: auto;
+            margin-bottom: 0;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: rgba(255, 255, 255, 0.88);
+        }
+
+        .carrier-labels-panel {
+            display: grid;
+            grid-template-rows: auto minmax(0, 1fr);
+            min-height: 250px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: rgba(255, 255, 255, 0.9);
+            overflow: hidden;
+        }
+
+        .carrier-labels-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0.72rem 0.82rem;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+            background: rgba(244, 247, 244, 0.86);
+        }
+
+        .carrier-labels-head strong,
+        .carrier-labels-head span {
+            display: block;
+        }
+
+        .carrier-labels-head strong {
+            font-size: 0.86rem;
+            color: var(--text);
+        }
+
+        .carrier-labels-head span {
+            margin-top: 0.12rem;
+            font-size: 0.73rem;
+            color: var(--text-muted);
+        }
+
+        .carrier-refresh-btn,
+        .carrier-open-btn {
+            appearance: none;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #fff;
+            color: var(--text);
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .carrier-refresh-btn {
+            width: 96px;
+            height: 30px;
+        }
+
+        .carrier-open-btn {
+            width: 82px;
+            height: 28px;
+        }
+
+        .carrier-refresh-btn:hover,
+        .carrier-open-btn:hover {
+            border-color: rgba(0, 179, 77, 0.28);
+            color: var(--primary-dark);
+            background: rgba(0, 179, 77, 0.06);
+        }
+
+        .carrier-labels-table-wrap {
+            min-height: 0;
+            overflow-y: auto;
+        }
+
+        .carrier-labels-table th,
+        .carrier-labels-table td {
+            vertical-align: middle;
+        }
+
+        .carrier-file-main {
+            display: grid;
+            gap: 0.14rem;
+        }
+
+        .carrier-file-main strong {
+            font-size: 0.84rem;
+            color: var(--text);
+            overflow-wrap: anywhere;
+        }
+
+        .carrier-file-main span {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+
+        .carrier-source-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 64px;
+            height: 22px;
+            padding: 0 0.5rem;
+            border-radius: 999px;
+            background: rgba(18, 83, 164, 0.09);
+            color: #1253A4;
+            font-size: 0.68rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .carrier-empty {
+            height: 126px;
+            text-align: center;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+        }
+
+        th {
+            background: rgba(244, 247, 244, 0.98);
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            position: sticky;
+            top: 0;
+        }
+
+        td {
+            font-size: 0.95rem;
+        }
+
+        .meta-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+
+        .meta-cell strong {
+            font-size: 0.85rem;
+            color: var(--text);
+        }
+
+        .meta-cell span {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
+        tbody tr {
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        tbody tr:hover {
+            background: rgba(0, 179, 77, 0.06);
+        }
+
+        tbody tr.is-selected {
+            background: rgba(0, 179, 77, 0.12);
+        }
+
+        .row-selector {
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        .results-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--space-4);
+        }
+
+        .btn-carrier {
+            border: 1px solid rgba(15, 23, 42, 0.1);
+        }
+
+        .btn-carrier-blue {
+            background: #0B57D0;
+        }
+
+        .btn-carrier-blue:hover {
+            background: #0847AD;
+        }
+
+        .btn-carrier-walmart {
+            background: #0053A6;
+        }
+
+        .btn-carrier-walmart:hover {
+            background: #004385;
+        }
+
+        .btn-carrier-mark {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.18);
+            color: #fff;
+            font-size: 0.78rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.05);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 115, 129, 0.32);
+            border-radius: 4px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes statusPulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+            }
+            70% {
+                transform: scale(1.08);
+                box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .message-stack {
+                bottom: 0.75rem;
+                right: 0.75rem;
+                left: 0.75rem;
+                width: auto;
+            }
+
+            .input-methods .method-card:first-child {
+                top: 0.25rem;
+                right: 1rem;
+            }
+
+            .picker-manager-top {
+                grid-template-columns: 1fr;
+            }
+
+            .picker-add-btn {
+                width: 100%;
+            }
+
+            .results-toolbar {
+                grid-template-columns: 1fr;
+            }
+
+            .results-search-group {
+                grid-template-columns: 1fr;
+            }
+
+            .search-input {
+                min-width: 0;
+            }
+
+            .results-history-actions {
+                grid-template-columns: repeat(2, 134px);
+                margin-left: 0;
+            }
+
+            .stats {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .label-source-tabs {
+                grid-template-columns: 1fr;
+            }
+
+            .results-actions {
+                grid-template-columns: 1fr;
+            }
+
+            .order-lookup-head,
+            .order-lookup-upload-row,
+            .order-lookup-filter-row {
+                grid-template-columns: 1fr;
+            }
+
+            .order-lookup-filter-row {
+                grid-template-areas:
+                    "search"
+                    "state"
+                    "actions";
+            }
+
+            .order-lookup-head {
+                display: grid;
+            }
+
+            .order-lookup-channel {
+                justify-self: start;
+            }
+
+            .order-lookup-actions {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                padding-top: 0;
+            }
+
+            .selection-hint {
+                text-align: left;
+            }
+
+            .storage-header {
+                flex-direction: column;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .order-lookup-card {
+                padding: 0.8rem;
+            }
+
+            .order-lookup-controls {
+                padding: 0.65rem;
+            }
+
+            .order-lookup-actions {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (min-width: 1181px) {
+            body {
+                height: 100vh;
+                overflow: hidden;
+                padding: 0.85rem 1rem;
+            }
+
+            .container {
+                width: min(100%, 1720px);
+                height: calc(100vh - 1.7rem);
+                display: grid;
+                grid-template-rows: auto auto minmax(0, 1fr);
+                gap: 0.75rem;
+            }
+
+            header {
+                max-width: none;
+                margin: 0;
+                display: grid;
+                grid-template-columns: auto 1fr;
+                grid-template-areas:
+                    "logo title"
+                    "logo subtitle";
+                gap: 0.05rem 0.9rem;
+                align-items: center;
+                justify-content: start;
+                text-align: left;
+            }
+
+            .app-logo {
+                grid-area: logo;
+                max-height: 54px;
+                margin: 0;
+            }
+
+            header h1 {
+                grid-area: title;
+                margin: 0;
+                font-size: 1.78rem;
+                line-height: 1.02;
+                justify-self: start;
+            }
+
+            header p {
+                grid-area: subtitle;
+                margin: 0;
+                max-width: none;
+                font-size: 0.88rem;
+                line-height: 1.16;
+                justify-self: start;
+            }
+
+            .message-stack {
+                width: min(380px, calc(100vw - 2rem));
+                gap: 0.5rem;
+            }
+
+            .app-message {
+                padding: 0.68rem 0.82rem;
+                border-radius: 12px;
+            }
+
+            .app-message-content strong,
+            .app-message-text {
+                font-size: 0.78rem;
+            }
+
+            .panels-container {
+                height: 100%;
+                min-height: 0;
+                grid-template-columns: minmax(310px, 340px) minmax(0, 1fr) minmax(330px, 368px);
+                gap: 1.05rem;
+                justify-content: stretch;
+                align-items: stretch;
+            }
+
+            .panels-container > .panel {
+                height: 100%;
+                min-height: 0;
+            }
+
+            .panel {
+                padding: 0.95rem 1rem;
+                border-radius: 14px;
+                box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+            }
+
+            .panel-left,
+            .panel-right.order-lookup-card {
+                background: rgba(255, 255, 255, 0.82);
+            }
+
+            .panel-left {
+                display: grid;
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "picker"
+                    "input"
+                    "history";
+                grid-template-rows: auto auto minmax(308px, 1fr);
+                gap: 0.78rem;
+                align-content: start;
+                overflow: auto;
+                scrollbar-gutter: stable;
+            }
+
+            .input-group {
+                gap: 0.55rem;
+                margin-bottom: 0;
+            }
+
+            .form-control {
+                gap: 0.35rem;
+            }
+
+            label {
+                font-size: 0.7rem;
+                letter-spacing: 0.08em;
+            }
+
+            input[type="text"],
+            select {
+                padding: 0.7rem 0.78rem;
+                font-size: 0.84rem;
+            }
+
+            .picker-meta,
+            .picker-manager-note {
+                font-size: 0.68rem;
+                line-height: 1.22;
+            }
+
+            .picker-meta {
+                margin-top: 0;
+            }
+
+            .picker-select-row {
+                gap: 0.45rem;
+            }
+
+            .picker-manage-btn {
+                width: 30px;
+                height: 30px;
+                min-width: 30px;
+                max-width: 30px;
+                flex: 0 0 30px;
+            }
+
+            .picker-manager {
+                margin-top: 0;
+                padding: 0.72rem;
+                gap: 0.55rem;
+                max-height: 280px;
+                overflow: auto;
+            }
+
+            .picker-manager-header strong {
+                font-size: 0.78rem;
+            }
+
+            .picker-manager-header > div span,
+            .picker-list-head {
+                font-size: 0.67rem;
+            }
+
+            .picker-manager-top input[type="text"] {
+                padding: 0.58rem 0.72rem;
+                font-size: 0.78rem;
+            }
+
+            .picker-add-btn {
+                min-height: 34px;
+                padding: 0 0.72rem;
+                font-size: 0.75rem;
+            }
+
+            .picker-list-wrap {
+                padding: 0.5rem;
+                gap: 0.4rem;
+            }
+
+            .picker-list {
+                max-height: 128px;
+            }
+
+            .picker-row {
+                padding: 0.4rem 0.52rem;
+                border-radius: 10px;
+            }
+
+            .picker-row strong {
+                font-size: 0.75rem;
+            }
+
+            .input-methods {
+                height: auto;
+                min-height: auto;
+                margin-top: 0;
+                position: relative;
+                display: grid;
+                align-items: start;
+                align-content: start;
+            }
+
+            .method-card {
+                padding: 0.9rem 0.95rem;
+            }
+
+            .method-card h3 {
+                font-size: 0.86rem;
+                margin: 0;
+                text-align: left;
+            }
+
+            .input-methods .method-card:first-child {
+                top: 0.12rem;
+                right: 0.82rem;
+            }
+
+            .dropzone {
+                width: 34px;
+                height: 34px;
+                border-radius: 9px;
+            }
+
+            .dropzone::before {
+                font-size: 1.18rem;
+            }
+
+            .input-methods .method-card:last-child {
+                height: auto;
+                min-height: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 0.55rem;
+                padding: 0.9rem 0.95rem;
+            }
+
+            .input-methods .method-card:last-child textarea {
+                flex: 0 1 auto;
+                min-height: 168px;
+                height: auto;
+                padding: 0.78rem 0.82rem;
+                font-size: 0.8rem;
+            }
+
+            #processTextBtn,
+            #clearBtn {
+                margin-top: 0;
+                min-height: 40px;
+                padding: 0.68rem 0.82rem;
+                font-size: 0.79rem;
+            }
+
+            #processTextBtn svg,
+            #clearBtn svg {
+                width: 16px;
+                height: 16px;
+            }
+
+            .panel-left .storage-card {
+                max-height: none;
+                min-height: 308px;
+                overflow: visible;
+            }
+
+            .storage-card {
+                margin-top: 0;
+                padding: 0.72rem;
+                gap: 0.5rem;
+            }
+
+            .storage-header h3 {
+                font-size: 0.79rem;
+                margin: 0;
+            }
+
+            .storage-header p,
+            .storage-note,
+            .results-meta,
+            .history-empty {
+                font-size: 0.7rem;
+                line-height: 1.22;
+            }
+
+            .history-list {
+                flex: 1 1 auto;
+                min-height: 0;
+                max-height: none;
+                gap: 0.35rem;
+            }
+
+            .history-item {
+                padding: 0.44rem 0.52rem;
+            }
+
+            .history-item strong {
+                font-size: 0.73rem;
+            }
+
+            .history-item span {
+                font-size: 0.66rem;
+            }
+
+            .history-actions {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 0.35rem;
+            }
+
+            #savePortableBtn {
+                grid-column: 1 / -1;
+            }
+
+            .btn-small {
+                width: 100%;
+                padding: 0.46rem 0.56rem;
+                font-size: 0.71rem;
+                flex: none;
+            }
+
+            .panel-main {
+                background: rgba(255, 255, 255, 0.92);
+                border-color: rgba(15, 23, 42, 0.12);
+                box-shadow: 0 20px 38px rgba(15, 23, 42, 0.10);
+                overflow: hidden;
+            }
+
+            .panel-main[data-results-state="idle"] {
+                opacity: 0.98;
+            }
+
+            #results {
+                min-height: 0;
+                overflow: hidden;
+            }
+
+            .results-shell {
+                height: 100%;
+                min-height: 0;
+                display: grid;
+                grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+                gap: 0.7rem;
+            }
+
+            .stats {
+                display: grid;
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 0.55rem;
+                margin-bottom: 0;
+                padding-bottom: 0.7rem;
+            }
+
+            .stat-item {
+                padding: 0.52rem 0.42rem;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                background: rgba(248, 251, 248, 0.72);
+            }
+
+            .stat-value {
+                font-size: 1.42rem;
+            }
+
+            .stat-label {
+                font-size: 0.67rem;
+                letter-spacing: 0.04em;
+            }
+
+            .results-toolbar {
+                margin-bottom: 0;
+                gap: 0.75rem;
+                grid-template-columns: minmax(0, 1fr) minmax(220px, 285px);
+                align-items: center;
+            }
+
+            .search-input {
+                padding: 0.72rem 0.86rem;
+                font-size: 0.85rem;
+            }
+
+            .selection-hint {
+                font-size: 0.73rem;
+                text-align: right;
+            }
+
+            .results-meta {
+                margin-bottom: 0;
+                min-height: 1.05rem;
+            }
+
+            .table-container {
+                height: 100%;
+                min-height: 0;
+                max-height: none;
+                margin-bottom: 0;
+                border-radius: 12px;
+            }
+
+            .carrier-labels-panel {
+                height: 100%;
+                min-height: 0;
+                border-radius: 12px;
+            }
+
+            th,
+            td {
+                padding: 0.56rem 0.7rem;
+            }
+
+            th {
+                font-size: 0.74rem;
+            }
+
+            td {
+                font-size: 0.8rem;
+            }
+
+            .meta-cell strong {
+                font-size: 0.77rem;
+            }
+
+            .meta-cell span {
+                font-size: 0.68rem;
+            }
+
+            .results-actions {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 0.6rem;
+            }
+
+            .results-actions .btn {
+                min-height: 42px;
+                padding: 0.72rem 0.9rem;
+                font-size: 0.82rem;
+            }
+
+            .panel-right.order-lookup-card {
+                display: grid;
+                height: 100%;
+                min-height: 0;
+                margin-top: 0;
+                padding: 0.92rem 0.95rem;
+                gap: 0.68rem;
+                grid-template-rows: auto auto minmax(0, 1fr);
+                overflow: hidden;
+                scrollbar-gutter: stable;
+            }
+
+            .order-lookup-head {
+                gap: 0.6rem;
+            }
+
+            .order-lookup-head h3 {
+                font-size: 0.9rem;
+            }
+
+            .order-lookup-head p {
+                font-size: 0.71rem;
+                line-height: 1.28;
+                max-width: none;
+            }
+
+            .order-lookup-controls {
+                gap: 0.55rem;
+                padding: 0.72rem;
+            }
+
+            .order-lookup-upload-row {
+                grid-template-columns: 124px minmax(0, 1fr);
+                gap: 0.55rem;
+            }
+
+            .order-lookup-filter-row {
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "search"
+                    "state"
+                    "actions";
+                gap: 0.55rem;
+            }
+
+            .order-lookup-filter-field.is-compact {
+                max-width: none;
+            }
+
+            .order-lookup-actions {
+                grid-template-columns: 1fr 1fr;
+                justify-content: stretch;
+                gap: 0.45rem;
+            }
+
+            .order-lookup-actions .btn {
+                min-width: 0;
+            }
+
+            .order-lookup-card .btn,
+            .order-lookup-search-input,
+            .order-lookup-filter-field select,
+            .order-lookup-file {
+                min-height: 39px;
+                font-size: 0.8rem;
+            }
+
+            .order-lookup-card .btn {
+                padding: 0.7rem 0.82rem;
+            }
+
+            .order-lookup-search-input {
+                padding: 0.7rem 0.8rem;
+            }
+
+            .order-lookup-file {
+                padding: 0.64rem 0.75rem;
+                font-size: 0.71rem;
+            }
+
+            .order-lookup-filter-field.is-compact select {
+                min-height: 36px;
+                padding: 0.5rem 0.72rem;
+                font-size: 0.77rem;
+            }
+
+            .order-lookup-output {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto minmax(0, 1fr);
+                gap: 0.55rem;
+                min-height: 0;
+            }
+
+            .order-lookup-summary {
+                padding: 0.68rem 0.72rem;
+                gap: 0.25rem;
+            }
+
+            .order-lookup-summary strong {
+                font-size: 0.76rem;
+            }
+
+            .order-lookup-summary span {
+                font-size: 0.68rem;
+            }
+
+            .order-lookup-table-wrap {
+                min-height: 0;
+                max-height: none;
+            }
+
+            .order-lookup-table th,
+            .order-lookup-table td {
+                padding: 0.44rem 0.6rem;
+                font-size: 0.71rem;
+            }
+        }
+
+</style>
+    <style>
 
 /* ── Reset del grid que impone styles.css en .panel-left ── */
 .panel-left,
@@ -2390,294 +4919,310 @@ body.is-dark-mode .btn-carrier-walmart {
     </style>
 </head>
 <body>
-<div class="container">
-<header>
-<img alt="NovaPet Logo" class="app-logo" src="data:image/png;base64,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"/>
-<h1>EXTRACTOR DE ETIQUETAS</h1>
-<p>Generador automatico de planilla de carga asignada.</p>
-<div aria-label="Estado de la aplicacion" class="app-top-actions">
-<span class="app-system-status is-operational" id="appSystemStatus" title="Sistema operativo">
-<span aria-hidden="true" class="app-system-status-dot"></span>
-<span class="app-system-status-label">Sistema operativo</span>
-</span>
-<button aria-label="Activar modo oscuro" aria-pressed="false" class="app-theme-toggle-btn" id="themeToggleBtn" title="Activar modo oscuro" type="button">
-<svg aria-hidden="true" class="theme-icon theme-icon--moon" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-<svg aria-hidden="true" class="theme-icon theme-icon--sun" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
-</button>
-<button aria-controls="notificationPanel" aria-expanded="false" aria-label="Notificaciones" class="app-bell-btn" id="notificationBellBtn" type="button">
-<svg aria-hidden="true" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="18" xmlns="http://www.w3.org/2000/svg"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-<span aria-hidden="true" class="notification-badge" id="notificationBadge"></span>
-</button>
-</div>
-</header>
-<div aria-atomic="true" aria-live="polite" class="message-stack" id="messageStack"></div>
-<section aria-label="Centro de notificaciones" class="app-notification-panel" hidden="" id="notificationPanel">
-<div class="notification-head">
-<div>
-<strong>Notificaciones</strong>
-<span>Resumen operativo del extractor</span>
-</div>
-<button aria-label="Cerrar notificaciones" class="notification-close-btn" id="notificationPanelCloseBtn" type="button">×</button>
-</div>
-<div class="notification-summary" id="notificationSummary"></div>
-<div class="notification-list" id="notificationList"></div>
-<div class="notification-actions">
-<button class="notification-action-btn is-primary" id="notificationDriveBtn" type="button">Ver Drive</button>
-<button class="notification-action-btn" id="notificationPanelRefreshBtn" type="button">Actualizar</button>
-</div>
-</section>
-<div class="panels-container">
-<div class="panel panel-left">
-<!-- STATUS BAR -->
-<div class="lp-statusbar">
-<span aria-live="polite" class="status-pill lp-statusbar-time" id="storageStatus">Verificando...</span>
-<button aria-pressed="false" id="outsideHoursToggleBtn" title="Activar historial fuera de horario" type="button">
-<svg fill="none" height="11" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="11" xmlns="http://www.w3.org/2000/svg"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v14a2 2 0 01-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+    <div class="container">
+        <header>
+            <img src="data:image/png;base64,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" class="app-logo" alt="NovaPet Logo">
+            <h1>EXTRACTOR DE ETIQUETAS</h1>
+            <p>Generador automatico de planilla de carga asignada.</p>
+            <div class="app-top-actions" aria-label="Estado de la aplicacion">
+                <span class="app-system-status is-operational" id="appSystemStatus" title="Sistema operativo">
+                    <span class="app-system-status-dot" aria-hidden="true"></span>
+                    <span class="app-system-status-label">Sistema operativo</span>
+                </span>
+                <button class="app-theme-toggle-btn" id="themeToggleBtn" type="button" aria-label="Activar modo oscuro" aria-pressed="false" title="Activar modo oscuro">
+                    <svg class="theme-icon theme-icon--moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    <svg class="theme-icon theme-icon--sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                </button>
+                <button class="app-bell-btn" id="notificationBellBtn" type="button" aria-label="Notificaciones" aria-expanded="false" aria-controls="notificationPanel">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    <span class="notification-badge" id="notificationBadge" aria-hidden="true"></span>
+                </button>
+            </div>
+        </header>
+        <div class="message-stack" id="messageStack" aria-live="polite" aria-atomic="true"></div>
+        <section class="app-notification-panel" id="notificationPanel" aria-label="Centro de notificaciones" hidden>
+            <div class="notification-head">
+                <div>
+                    <strong>Notificaciones</strong>
+                    <span>Resumen operativo del extractor</span>
+                </div>
+                <button class="notification-close-btn" id="notificationPanelCloseBtn" type="button" aria-label="Cerrar notificaciones">&times;</button>
+            </div>
+            <div class="notification-summary" id="notificationSummary"></div>
+            <div class="notification-list" id="notificationList"></div>
+            <div class="notification-actions">
+                <button class="notification-action-btn is-primary" id="notificationDriveBtn" type="button">Ver Drive</button>
+                <button class="notification-action-btn" id="notificationPanelRefreshBtn" type="button">Actualizar</button>
+            </div>
+        </section>
+
+        <div class="panels-container">
+                        <div class="panel panel-left">
+
+                <!-- STATUS BAR -->
+                <div class="lp-statusbar">
+                    <span class="status-pill lp-statusbar-time" id="storageStatus" aria-live="polite">Verificando...</span>
+                    <button id="outsideHoursToggleBtn" type="button" aria-pressed="false" title="Activar historial fuera de horario">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v14a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                         +18:00
                     </button>
-</div>
-<!-- GOOGLE DRIVE CARD -->
-<div id="drive-sync-panel">
-<div class="lp-drive-header">
-<svg height="18" viewbox="0 0 87.3 78" width="22" xmlns="http://www.w3.org/2000/svg">
-<path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"></path>
-<path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"></path>
-<path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"></path>
-<path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"></path>
-<path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"></path>
-<path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"></path>
-</svg>
-<div style="flex:1; display:flex; flex-direction:column; gap:1px;">
-<span style="font-weight:600; font-size:13px; color:var(--text);">Google Drive</span>
-<span id="drive-sync-status">Desconectado</span>
-</div>
-<div id="drive-file-count" onclick="DriveSync.togglePanel()" title="Ver archivos del día">
-<span id="drive-file-count-num" style="font-size:18px; font-weight:700; color:#00ac47; line-height:1;">0</span>
-<span style="font-size:10px; color:#00ac47; font-weight:500;">archivos</span>
-</div>
-</div>
-<div class="lp-drive-modes">
-<button id="drive-mode-auto" onclick="DriveSync.setMode('auto')">Automático</button>
-<button id="drive-mode-manual" onclick="DriveSync.setMode('manual')">Manual</button>
-</div>
-<div id="drive-mode-desc">Asigna a <strong>kmendoza</strong> y procesa automáticamente</div>
-<div id="drive-day-status">
-<div id="drive-day-dot" style="width:8px;height:8px;border-radius:50%;background:#00ac47;flex-shrink:0;"></div>
-<div style="flex:1;">
-<div id="drive-day-name" style="font-weight:500;color:var(--text);">—</div>
-<div style="font-size:11px;color:var(--text-muted);">Revisando cada 30s</div>
-</div>
-<button onclick="DriveSync.togglePanel()" style="padding:4px 10px;font-size:11px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-muted);white-space:nowrap;">Ver archivos</button>
-</div>
-<div class="lp-drive-btns-row">
-<button class="btn btn-compact" id="drive-sync-btn" onclick="DriveSync.connect()" style="flex:1;">
-<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="13" xmlns="http://www.w3.org/2000/svg"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" x2="21" y1="14" y2="3"></line></svg>
+                </div>
+
+                <!-- GOOGLE DRIVE CARD -->
+                <div id="drive-sync-panel">
+                    <div class="lp-drive-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="18" viewBox="0 0 87.3 78">
+                            <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                            <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+                            <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                            <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                            <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                            <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 27h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                        </svg>
+                        <div style="flex:1; display:flex; flex-direction:column; gap:1px;">
+                            <span style="font-weight:600; font-size:13px; color:var(--text);">Google Drive</span>
+                            <span id="drive-sync-status">Desconectado</span>
+                        </div>
+                        <div id="drive-file-count" title="Ver archivos del día" onclick="DriveSync.togglePanel()">
+                            <span id="drive-file-count-num" style="font-size:18px; font-weight:700; color:#00ac47; line-height:1;">0</span>
+                            <span style="font-size:10px; color:#00ac47; font-weight:500;">archivos</span>
+                        </div>
+                    </div>
+
+                    <div class="lp-drive-modes">
+                        <button id="drive-mode-auto" onclick="DriveSync.setMode('auto')">Automático</button>
+                        <button id="drive-mode-manual" onclick="DriveSync.setMode('manual')">Manual</button>
+                    </div>
+                    <div id="drive-mode-desc">Asigna a <strong>kmendoza</strong> y procesa automáticamente</div>
+
+                    <div id="drive-day-status">
+                        <div id="drive-day-dot" style="width:8px;height:8px;border-radius:50%;background:#00ac47;flex-shrink:0;"></div>
+                        <div style="flex:1;">
+                            <div id="drive-day-name" style="font-weight:500;color:var(--text);">—</div>
+                            <div style="font-size:11px;color:var(--text-muted);">Revisando cada 30s</div>
+                        </div>
+                        <button onclick="DriveSync.togglePanel()" style="padding:4px 10px;font-size:11px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--text-muted);white-space:nowrap;">Ver archivos</button>
+                    </div>
+
+                    <div class="lp-drive-btns-row">
+                        <button class="btn btn-compact" id="drive-sync-btn" style="flex:1;" onclick="DriveSync.connect()">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                             Conectar Drive
                         </button>
-<button class="btn btn-secondary" id="drive-sync-stop" onclick="DriveSync.stop()" style="flex:1; display:none;">
-<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="13" xmlns="http://www.w3.org/2000/svg"><rect height="18" rx="2" width="18" x="3" y="3"></rect></svg>
+                        <button class="btn btn-secondary" id="drive-sync-stop" style="flex:1; display:none;" onclick="DriveSync.stop()">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
                             Detener monitoreo
                         </button>
-<button aria-expanded="false" aria-label="Abrir configuracion de sonidos" class="btn btn-secondary lp-drive-sound-trigger" id="drive-sound-menu-btn" onclick="DriveSync.toggleSoundMenu()" title="Sonidos" type="button">
-<svg aria-hidden="true" fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="15" xmlns="http://www.w3.org/2000/svg"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
-</button>
-<div class="lp-drive-sound-popover" hidden="" id="drive-sound-popover">
-<div class="lp-drive-sound-row">
-<button id="drive-sound-test-btn" onclick="DriveSync.testSounds()" type="button">
-<svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="12" xmlns="http://www.w3.org/2000/svg"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                        <button class="btn btn-secondary lp-drive-sound-trigger" id="drive-sound-menu-btn" type="button" title="Sonidos" aria-label="Abrir configuracion de sonidos" aria-expanded="false" onclick="DriveSync.toggleSoundMenu()">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                        </button>
+                        <div class="lp-drive-sound-popover" id="drive-sound-popover" hidden>
+                            <div class="lp-drive-sound-row">
+                                <button id="drive-sound-test-btn" type="button" onclick="DriveSync.testSounds()">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
                                     Probar sonidos
                                 </button>
-<span id="drive-sound-test-label"></span>
-</div>
-<div class="lp-drive-sound-grid">
-<label class="lp-drive-sound-field">
-<span>Archivo nuevo</span>
-<div class="lp-drive-sound-control">
-<select class="lp-drive-sound-select" id="drive-sound-arrival">
-<option value="clearBell">Campana clara</option>
-<option value="softDouble">Doble suave</option>
-<option value="brightPing">Ping brillante</option>
-<option value="risingChime">Subida corta</option>
-<option value="warmBell">Campana tibia</option>
-<option value="softPulse">Pulso suave</option>
-<option value="firmAlert">Alerta firme</option>
-<option value="shortTone">Tono corto</option>
-<option value="loudBell">Campana fuerte</option>
-<option value="urgentTriple">Triple urgente</option>
-<option value="digitalAlarm">Alarma digital</option>
-<option value="sirenRise">Sirena subida</option>
-<option value="rapidPulse">Pulso rápido</option>
-<option value="bassKnock">Golpe grave</option>
-<option value="highFlash">Destello agudo</option>
-<option value="longAlarm">Alarma larga</option>
-<option value="silent">Sin sonido</option>
-</select>
-<button aria-label="Escuchar sonido de archivo nuevo" class="lp-drive-sound-preview" onclick="DriveSync.previewSound('arrival')" title="Escuchar sonido" type="button">
-<svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="13" xmlns="http://www.w3.org/2000/svg"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
-</button>
-</div>
-</label>
-<label class="lp-drive-sound-field">
-<span>Aviso 10 min</span>
-<div class="lp-drive-sound-control">
-<select class="lp-drive-sound-select" id="drive-sound-warning">
-<option value="clearBell">Campana clara</option>
-<option value="softDouble">Doble suave</option>
-<option value="brightPing">Ping brillante</option>
-<option value="risingChime">Subida corta</option>
-<option value="warmBell">Campana tibia</option>
-<option value="softPulse">Pulso suave</option>
-<option value="firmAlert">Alerta firme</option>
-<option value="shortTone">Tono corto</option>
-<option value="loudBell">Campana fuerte</option>
-<option value="urgentTriple">Triple urgente</option>
-<option value="digitalAlarm">Alarma digital</option>
-<option value="sirenRise">Sirena subida</option>
-<option value="rapidPulse">Pulso rápido</option>
-<option value="bassKnock">Golpe grave</option>
-<option value="highFlash">Destello agudo</option>
-<option value="longAlarm">Alarma larga</option>
-<option value="silent">Sin sonido</option>
-</select>
-<button aria-label="Escuchar sonido de aviso 10 minutos" class="lp-drive-sound-preview" onclick="DriveSync.previewSound('warning')" title="Escuchar sonido" type="button">
-<svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="13" xmlns="http://www.w3.org/2000/svg"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
-</button>
-</div>
-</label>
-<label class="lp-drive-sound-field">
-<span>Crítico 5 min</span>
-<div class="lp-drive-sound-control">
-<select class="lp-drive-sound-select" id="drive-sound-critical">
-<option value="clearBell">Campana clara</option>
-<option value="softDouble">Doble suave</option>
-<option value="brightPing">Ping brillante</option>
-<option value="risingChime">Subida corta</option>
-<option value="warmBell">Campana tibia</option>
-<option value="softPulse">Pulso suave</option>
-<option value="firmAlert">Alerta firme</option>
-<option value="shortTone">Tono corto</option>
-<option value="loudBell">Campana fuerte</option>
-<option value="urgentTriple">Triple urgente</option>
-<option value="digitalAlarm">Alarma digital</option>
-<option value="sirenRise">Sirena subida</option>
-<option value="rapidPulse">Pulso rápido</option>
-<option value="bassKnock">Golpe grave</option>
-<option value="highFlash">Destello agudo</option>
-<option value="longAlarm">Alarma larga</option>
-<option value="silent">Sin sonido</option>
-</select>
-<button aria-label="Escuchar sonido crítico de 5 minutos" class="lp-drive-sound-preview" onclick="DriveSync.previewSound('critical')" title="Escuchar sonido" type="button">
-<svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="13" xmlns="http://www.w3.org/2000/svg"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
-</button>
-</div>
-</label>
-</div>
-</div>
-</div>
-<div id="drive-pending-section" style="display:none;">
-<div class="lp-pending-label">📥 Pendientes</div>
-<div id="drive-pending-list">
-<div id="drive-no-pending">Esperando archivos nuevos...</div>
-</div>
-</div>
-<div id="drive-sync-toast" style="display:none;"></div>
-</div>
-<!-- PICKER + TEXTO CARD -->
-<div class="lp-picker-card is-collapsed">
-<div id="dropzone" style="display:none;">
-<input accept=".txt" id="fileInput" multiple="" type="file"/>
-</div>
-<div class="lp-collapsible-head">
-<div class="lp-section-label">Usuario / Picker</div>
-<button aria-expanded="false" aria-label="Expandir bloque de etiquetas" class="lp-collapse-btn" id="pickerCardToggleBtn" onclick="togglePickerCard()" type="button">
-<svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewbox="0 0 24 24" width="13" xmlns="http://www.w3.org/2000/svg"><polyline points="6 9 12 15 18 9"></polyline></svg>
-</button>
-</div>
-<div class="lp-picker-body" id="pickerCardBody">
-<div class="input-group">
-<div class="form-control">
-<div class="picker-select-row">
-<select id="picker" required="">
-<option disabled="" selected="" value="">Seleccione una opcion...</option>
-<option value="bestay">bestay</option>
-<option value="eagudelo">eagudelo</option>
-<option value="kmendoza">kmendoza</option>
-<option value="ovasquez">ovasquez</option>
-<option value="ptapia">ptapia</option>
-<option value="sperez">sperez</option>
-</select>
-<button aria-label="Administrar usuarios" class="btn btn-secondary picker-manage-btn" id="manageUsersBtn" title="Administrar usuarios" type="button">+</button>
-</div>
-<span class="picker-meta" id="pickerMeta">6 usuario(s) disponible(s)</span>
-<div class="picker-manager" hidden="" id="pickerManager">
-<div class="picker-manager-header">
-<div>
-<strong>Administrar usuarios</strong>
-<span>Agrega nuevos usuarios o elimina los que ya no necesitas.</span>
-</div>
-<span class="picker-manager-count" id="pickerManagerCount">6</span>
-</div>
-<div class="picker-manager-top">
-<input id="newPickerInput" placeholder="Escribe un usuario" type="text"/>
-<button class="btn picker-add-btn" id="addPickerBtn" type="button">Agregar</button>
-</div>
-<div class="picker-manager-note">Debe quedar al menos un usuario disponible.</div>
-<div class="picker-list-wrap">
-<div class="picker-list-head">
-<span>Usuarios disponibles</span>
-<span class="picker-list-total" id="pickerListTotal">6</span>
-</div>
-<div class="picker-list" id="pickerList"></div>
-</div>
-</div>
-</div>
-</div>
-<hr class="lp-divider"/>
-<div class="lp-text-subheader">
-<div class="lp-section-label" style="margin-bottom:0;">Ingresar Etiquetas</div>
-<label class="lp-file-label" for="fileInput" title="Cargar archivo .txt">
-<svg fill="none" height="14" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" viewbox="0 0 24 24" width="14" xmlns="http://www.w3.org/2000/svg"><line x1="12" x2="12" y1="5" y2="19"></line><line x1="5" x2="19" y1="12" y2="12"></line></svg>
-</label>
-</div>
-<textarea id="textInput" placeholder="Pega aqui el contenido de la etiqueta..."></textarea>
-<p id="storageSummary" style="display:none!important;">El historial funciona entre las 07:00 y las 18:00.</p>
-<div class="lp-text-actions">
-<button class="btn btn-compact" id="processTextBtn">
-<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                                <span id="drive-sound-test-label"></span>
+                            </div>
+                            <div class="lp-drive-sound-grid">
+                            <label class="lp-drive-sound-field">
+                                <span>Archivo nuevo</span>
+                                <div class="lp-drive-sound-control">
+                                    <select class="lp-drive-sound-select" id="drive-sound-arrival">
+                                        <option value="clearBell">Campana clara</option>
+                                        <option value="softDouble">Doble suave</option>
+                                        <option value="brightPing">Ping brillante</option>
+                                        <option value="risingChime">Subida corta</option>
+                                        <option value="warmBell">Campana tibia</option>
+                                        <option value="softPulse">Pulso suave</option>
+                                        <option value="firmAlert">Alerta firme</option>
+                                        <option value="shortTone">Tono corto</option>
+                                        <option value="loudBell">Campana fuerte</option>
+                                        <option value="urgentTriple">Triple urgente</option>
+                                        <option value="digitalAlarm">Alarma digital</option>
+                                        <option value="sirenRise">Sirena subida</option>
+                                        <option value="rapidPulse">Pulso rápido</option>
+                                        <option value="bassKnock">Golpe grave</option>
+                                        <option value="highFlash">Destello agudo</option>
+                                        <option value="longAlarm">Alarma larga</option>
+                                        <option value="silent">Sin sonido</option>
+                                    </select>
+                                    <button class="lp-drive-sound-preview" type="button" title="Escuchar sonido" aria-label="Escuchar sonido de archivo nuevo" onclick="DriveSync.previewSound('arrival')">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                                    </button>
+                                </div>
+                            </label>
+                            <label class="lp-drive-sound-field">
+                                <span>Aviso 10 min</span>
+                                <div class="lp-drive-sound-control">
+                                    <select class="lp-drive-sound-select" id="drive-sound-warning">
+                                        <option value="clearBell">Campana clara</option>
+                                        <option value="softDouble">Doble suave</option>
+                                        <option value="brightPing">Ping brillante</option>
+                                        <option value="risingChime">Subida corta</option>
+                                        <option value="warmBell">Campana tibia</option>
+                                        <option value="softPulse">Pulso suave</option>
+                                        <option value="firmAlert">Alerta firme</option>
+                                        <option value="shortTone">Tono corto</option>
+                                        <option value="loudBell">Campana fuerte</option>
+                                        <option value="urgentTriple">Triple urgente</option>
+                                        <option value="digitalAlarm">Alarma digital</option>
+                                        <option value="sirenRise">Sirena subida</option>
+                                        <option value="rapidPulse">Pulso rápido</option>
+                                        <option value="bassKnock">Golpe grave</option>
+                                        <option value="highFlash">Destello agudo</option>
+                                        <option value="longAlarm">Alarma larga</option>
+                                        <option value="silent">Sin sonido</option>
+                                    </select>
+                                    <button class="lp-drive-sound-preview" type="button" title="Escuchar sonido" aria-label="Escuchar sonido de aviso 10 minutos" onclick="DriveSync.previewSound('warning')">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                                    </button>
+                                </div>
+                            </label>
+                            <label class="lp-drive-sound-field">
+                                <span>Crítico 5 min</span>
+                                <div class="lp-drive-sound-control">
+                                    <select class="lp-drive-sound-select" id="drive-sound-critical">
+                                        <option value="clearBell">Campana clara</option>
+                                        <option value="softDouble">Doble suave</option>
+                                        <option value="brightPing">Ping brillante</option>
+                                        <option value="risingChime">Subida corta</option>
+                                        <option value="warmBell">Campana tibia</option>
+                                        <option value="softPulse">Pulso suave</option>
+                                        <option value="firmAlert">Alerta firme</option>
+                                        <option value="shortTone">Tono corto</option>
+                                        <option value="loudBell">Campana fuerte</option>
+                                        <option value="urgentTriple">Triple urgente</option>
+                                        <option value="digitalAlarm">Alarma digital</option>
+                                        <option value="sirenRise">Sirena subida</option>
+                                        <option value="rapidPulse">Pulso rápido</option>
+                                        <option value="bassKnock">Golpe grave</option>
+                                        <option value="highFlash">Destello agudo</option>
+                                        <option value="longAlarm">Alarma larga</option>
+                                        <option value="silent">Sin sonido</option>
+                                    </select>
+                                    <button class="lp-drive-sound-preview" type="button" title="Escuchar sonido" aria-label="Escuchar sonido crítico de 5 minutos" onclick="DriveSync.previewSound('critical')">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                                    </button>
+                                </div>
+                            </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="drive-pending-section" style="display:none;">
+                        <div class="lp-pending-label">📥 Pendientes</div>
+                        <div id="drive-pending-list">
+                            <div id="drive-no-pending">Esperando archivos nuevos...</div>
+                        </div>
+                    </div>
+
+                    <div id="drive-sync-toast" style="display:none;"></div>
+                </div>
+
+                <!-- PICKER + TEXTO CARD -->
+                <div class="lp-picker-card is-collapsed">
+                    <div id="dropzone" style="display:none;">
+                        <input type="file" id="fileInput" accept=".txt" multiple>
+                    </div>
+
+                    <div class="lp-collapsible-head">
+                        <div class="lp-section-label">Usuario / Picker</div>
+                        <button class="lp-collapse-btn" id="pickerCardToggleBtn" type="button" aria-label="Expandir bloque de etiquetas" aria-expanded="false" onclick="togglePickerCard()">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                    </div>
+                    <div class="lp-picker-body" id="pickerCardBody">
+                    <div class="input-group">
+                        <div class="form-control">
+                            <div class="picker-select-row">
+                                <select id="picker" required>
+                                    <option value="" disabled selected>Seleccione una opcion...</option>
+                                    <option value="bestay">bestay</option>
+                                    <option value="eagudelo">eagudelo</option>
+                                    <option value="kmendoza">kmendoza</option>
+                                    <option value="ovasquez">ovasquez</option>
+                                    <option value="ptapia">ptapia</option>
+                                    <option value="sperez">sperez</option>
+                                </select>
+                                <button class="btn btn-secondary picker-manage-btn" id="manageUsersBtn" type="button" aria-label="Administrar usuarios" title="Administrar usuarios">+</button>
+                            </div>
+                            <span class="picker-meta" id="pickerMeta">6 usuario(s) disponible(s)</span>
+                            <div class="picker-manager" id="pickerManager" hidden>
+                                <div class="picker-manager-header">
+                                    <div>
+                                        <strong>Administrar usuarios</strong>
+                                        <span>Agrega nuevos usuarios o elimina los que ya no necesitas.</span>
+                                    </div>
+                                    <span class="picker-manager-count" id="pickerManagerCount">6</span>
+                                </div>
+                                <div class="picker-manager-top">
+                                    <input id="newPickerInput" type="text" placeholder="Escribe un usuario">
+                                    <button class="btn picker-add-btn" id="addPickerBtn" type="button">Agregar</button>
+                                </div>
+                                <div class="picker-manager-note">Debe quedar al menos un usuario disponible.</div>
+                                <div class="picker-list-wrap">
+                                    <div class="picker-list-head">
+                                        <span>Usuarios disponibles</span>
+                                        <span class="picker-list-total" id="pickerListTotal">6</span>
+                                    </div>
+                                    <div class="picker-list" id="pickerList"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="lp-divider">
+
+                    <div class="lp-text-subheader">
+                        <div class="lp-section-label" style="margin-bottom:0;">Ingresar Etiquetas</div>
+                        <label for="fileInput" class="lp-file-label" title="Cargar archivo .txt">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        </label>
+                    </div>
+                    <textarea id="textInput" placeholder="Pega aqui el contenido de la etiqueta..."></textarea>
+                    <p id="storageSummary" style="display:none!important;">El historial funciona entre las 07:00 y las 18:00.</p>
+
+                    <div class="lp-text-actions">
+                        <button class="btn btn-compact" id="processTextBtn">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
                             Procesar Texto
                         </button>
-<button class="btn btn-secondary is-hidden" id="clearBtn">
-<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        <button class="btn btn-secondary is-hidden" id="clearBtn">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                             Limpiar Datos
                         </button>
-</div>
-</div>
-</div>
-<!-- HISTORIAL CARD -->
-<div class="lp-tabs-card lp-history-card">
-<div class="lp-history-head">
-<div class="lp-history-title">Actividad</div>
-<div class="lp-history-caption">Historial local</div>
-</div>
-<div class="lp-tab-panel lp-tab-panel--active" id="lp-panel-historial">
-<div class="lp-history-status">
-<div class="lp-history-status-label">Estado</div>
-<div class="storage-note" id="storageNote">Los archivos procesados se almacenan dentro de la franja operativa.</div>
-</div>
-<div class="history-list" id="historyList">
-<div class="history-empty">Aun no hay documentos guardados en este navegador.</div>
-</div>
-<button class="btn btn-secondary btn-small" id="savePortableBtn" type="button">Guardar HTML portable</button>
-</div>
-<div class="lp-tab-panel" hidden="" id="lp-panel-procesados">
-<div id="drive-processed-section" style="display:none;">
-<div class="lp-proc-label">Procesados hoy</div>
-<div id="drive-processed-list"></div>
-</div>
-<div class="lp-procesados-empty" id="lp-proc-empty">Aun no hay archivos procesados hoy.</div>
-</div>
-</div>
-<script>
+                    </div>
+                    </div>
+                </div>
+
+                <!-- HISTORIAL CARD -->
+                <div class="lp-tabs-card lp-history-card">
+                    <div class="lp-history-head">
+                        <div class="lp-history-title">Actividad</div>
+                        <div class="lp-history-caption">Historial local</div>
+                    </div>
+
+                    <div class="lp-tab-panel lp-tab-panel--active" id="lp-panel-historial">
+                        <div class="lp-history-status">
+                            <div class="lp-history-status-label">Estado</div>
+                            <div class="storage-note" id="storageNote">Los archivos procesados se almacenan dentro de la franja operativa.</div>
+                        </div>
+                        <div class="history-list" id="historyList">
+                            <div class="history-empty">Aun no hay documentos guardados en este navegador.</div>
+                        </div>
+                        <button class="btn btn-secondary btn-small" id="savePortableBtn" type="button">Guardar HTML portable</button>
+                    </div>
+
+                    <div class="lp-tab-panel" id="lp-panel-procesados" hidden>
+                        <div id="drive-processed-section" style="display:none;">
+                            <div class="lp-proc-label">Procesados hoy</div>
+                            <div id="drive-processed-list"></div>
+                        </div>
+                        <div class="lp-procesados-empty" id="lp-proc-empty">Aun no hay archivos procesados hoy.</div>
+                    </div>
+                </div>
+
+                <script>
                 function togglePickerCard() {
                     var card = document.querySelector('.lp-picker-card');
                     var btn = document.getElementById('pickerCardToggleBtn');
@@ -2711,241 +5256,259 @@ body.is-dark-mode .btn-carrier-walmart {
                     });
                 }());
                 </script>
-</div>
-<div class="panel panel-main" data-results-state="idle" id="results">
-<div class="results-shell">
-<div class="stats">
-<button aria-pressed="false" class="stat-item stat-item--flex stat-item--split" data-row-type-filter="flex" id="flexStatBtn" title="Mostrar solo pedidos FLEX" type="button">
-<span aria-hidden="true" class="stat-icon stat-icon--asset">
-<img alt="" draggable="false" src="assets/icons/flex.svg?v=option1-line"/>
-</span>
-<span class="stat-copy"><span class="stat-value" id="countFlex">0</span><span class="stat-label">Bultos Flex</span><small>Ver detalle</small></span>
-<span aria-label="Pedidos Flex sin estado y cancelados" class="stat-status-split">
-<span class="stat-status-chip"><strong id="countFlexNd">0</strong><span>N/D</span></span>
-<span class="stat-status-chip is-cancelled"><strong id="countFlexCancelled">0</strong><span>Cancel.</span></span>
-</span>
-</button>
-<button aria-pressed="false" class="stat-item stat-item--colecta stat-item--split" data-row-type-filter="colecta" id="colectaStatBtn" title="Mostrar solo pedidos COLECTA" type="button">
-<span aria-hidden="true" class="stat-icon stat-icon--asset">
-<img alt="" draggable="false" src="assets/icons/colecta.svg?v=option1-line"/>
-</span>
-<span class="stat-copy"><span class="stat-value" id="countColecta">0</span><span class="stat-label">Bultos Colecta</span><small>Ver detalle</small></span>
-<span aria-label="Pedidos Colecta sin estado y cancelados" class="stat-status-split">
-<span class="stat-status-chip"><strong id="countColectaNd">0</strong><span>N/D</span></span>
-<span class="stat-status-chip is-cancelled"><strong id="countColectaCancelled">0</strong><span>Cancel.</span></span>
-</span>
-</button>
-<button aria-pressed="false" class="stat-item stat-item--carrier stat-item--bluexpress" data-label-source="bluexpress" id="bluexpressStatBtn" title="Ver etiquetas PDF Bluexpress" type="button">
-<span aria-hidden="true" class="stat-icon stat-icon--asset">
-<img alt="" draggable="false" src="assets/icons/bluexpress.svg?v=option1-line"/>
-</span>
-<span class="stat-copy"><span class="stat-value" id="countBluexpress">0</span><span class="stat-label">Bluexpress</span><small>Ver detalle</small></span>
-</button>
-<button aria-pressed="false" class="stat-item stat-item--carrier stat-item--walmart" data-label-source="walmart" id="walmartStatBtn" title="Ver etiquetas PDF Walmart" type="button">
-<span aria-hidden="true" class="stat-icon stat-icon--asset">
-<img alt="" draggable="false" src="assets/icons/walmart.svg?v=option1-line"/>
-</span>
-<span class="stat-copy"><span class="stat-value" id="countWalmart">0</span><span class="stat-label">Walmart</span><small>Ver detalle</small></span>
-</button>
-<button aria-pressed="true" class="stat-item stat-item--total" data-row-type-filter="all" id="totalStatBtn" title="Mostrar todos los pedidos" type="button">
-<span aria-hidden="true" class="stat-icon stat-icon--asset">
-<img alt="" draggable="false" src="assets/icons/total.svg?v=option1-line"/>
-</span>
-<span class="stat-copy"><span class="stat-value" id="countTotal">0</span><span class="stat-label">Total Extraido</span><small>Ver detalle</small></span>
-</button>
-</div>
-<div class="results-toolbar">
-<div class="results-search-group">
-<input class="search-input" id="searchInput" placeholder="Buscar pedido en carga actual o historial..." type="text"/>
-<div class="results-history-actions">
-<button class="results-history-btn" id="showStoredBtn" title="Mostrar todo" type="button">Mostrar todo</button>
-<button class="results-history-btn" id="clearStoredBtn" title="Limpiar historial" type="button">Limpiar</button>
-</div>
-<button class="results-cancel-btn" disabled="" id="cancelOrderBtn" title="Marcar seleccionados como pedido cancelado" type="button">
+
+            </div>
+
+            <div class="panel panel-main" id="results" data-results-state="idle">
+                <div class="results-shell">
+                    <div class="stats">
+                        <button class="stat-item stat-item--flex stat-item--split" id="flexStatBtn" type="button" data-row-type-filter="flex" aria-pressed="false" title="Mostrar solo pedidos FLEX">
+                            <span class="stat-icon stat-icon--asset" aria-hidden="true">
+                                <img src="assets/icons/flex.svg?v=option1-line" alt="" draggable="false">
+                            </span>
+                            <span class="stat-copy"><span class="stat-value" id="countFlex">0</span><span class="stat-label">Bultos Flex</span><small>Ver detalle</small></span>
+                            <span class="stat-status-split" aria-label="Pedidos Flex sin estado y cancelados">
+                                <span class="stat-status-chip"><strong id="countFlexNd">0</strong><span>N/D</span></span>
+                                <span class="stat-status-chip is-cancelled"><strong id="countFlexCancelled">0</strong><span>Cancel.</span></span>
+                            </span>
+                        </button>
+                        <button class="stat-item stat-item--colecta stat-item--split" id="colectaStatBtn" type="button" data-row-type-filter="colecta" aria-pressed="false" title="Mostrar solo pedidos COLECTA">
+                            <span class="stat-icon stat-icon--asset" aria-hidden="true">
+                                <img src="assets/icons/colecta.svg?v=option1-line" alt="" draggable="false">
+                            </span>
+                            <span class="stat-copy"><span class="stat-value" id="countColecta">0</span><span class="stat-label">Bultos Colecta</span><small>Ver detalle</small></span>
+                            <span class="stat-status-split" aria-label="Pedidos Colecta sin estado y cancelados">
+                                <span class="stat-status-chip"><strong id="countColectaNd">0</strong><span>N/D</span></span>
+                                <span class="stat-status-chip is-cancelled"><strong id="countColectaCancelled">0</strong><span>Cancel.</span></span>
+                            </span>
+                        </button>
+                        <button class="stat-item stat-item--carrier stat-item--bluexpress" id="bluexpressStatBtn" type="button" data-label-source="bluexpress" aria-pressed="false" title="Ver etiquetas PDF Bluexpress">
+                            <span class="stat-icon stat-icon--asset" aria-hidden="true">
+                                <img src="assets/icons/bluexpress.svg?v=option1-line" alt="" draggable="false">
+                            </span>
+                            <span class="stat-copy"><span class="stat-value" id="countBluexpress">0</span><span class="stat-label">Bluexpress</span><small>Ver detalle</small></span>
+                        </button>
+                        <button class="stat-item stat-item--carrier stat-item--walmart" id="walmartStatBtn" type="button" data-label-source="walmart" aria-pressed="false" title="Ver etiquetas PDF Walmart">
+                            <span class="stat-icon stat-icon--asset" aria-hidden="true">
+                                <img src="assets/icons/walmart.svg?v=option1-line" alt="" draggable="false">
+                            </span>
+                            <span class="stat-copy"><span class="stat-value" id="countWalmart">0</span><span class="stat-label">Walmart</span><small>Ver detalle</small></span>
+                        </button>
+                        <button class="stat-item stat-item--total" id="totalStatBtn" type="button" data-row-type-filter="all" aria-pressed="true" title="Mostrar todos los pedidos">
+                            <span class="stat-icon stat-icon--asset" aria-hidden="true">
+                                <img src="assets/icons/total.svg?v=option1-line" alt="" draggable="false">
+                            </span>
+                            <span class="stat-copy"><span class="stat-value" id="countTotal">0</span><span class="stat-label">Total Extraido</span><small>Ver detalle</small></span>
+                        </button>
+                    </div>
+
+                    <div class="results-toolbar">
+                        <div class="results-search-group">
+                            <input class="search-input" id="searchInput" type="text" placeholder="Buscar pedido en carga actual o historial...">
+                            <div class="results-history-actions">
+                                <button class="results-history-btn" id="showStoredBtn" type="button" title="Mostrar todo">Mostrar todo</button>
+                                <button class="results-history-btn" id="clearStoredBtn" type="button" title="Limpiar historial">Limpiar</button>
+                            </div>
+                            <button class="results-cancel-btn" id="cancelOrderBtn" type="button" title="Marcar seleccionados como pedido cancelado" disabled>
                                 Pedido cancelado
                             </button>
-<button aria-expanded="false" class="results-advanced-btn" id="advancedFiltersBtn" title="Subir archivo Excel de estados" type="button">
-<svg aria-hidden="true" fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="15" xmlns="http://www.w3.org/2000/svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg>
+                            <button class="results-advanced-btn" id="advancedFiltersBtn" type="button" aria-expanded="false" title="Subir archivo Excel de estados">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                                 Subir Excel
                             </button>
-</div>
-<div class="selection-hint" id="selectedInfo"></div>
-</div>
-<div class="results-lookup-slot" hidden="" id="resultsLookupSlot"></div>
-<div class="results-meta" id="resultsMeta"></div>
-<div class="table-container">
-<table id="dataTable">
-<thead>
-<tr>
-<th>Sel.</th>
-<th>Proceso</th>
-<th>Numero</th>
-<th>Picker</th>
-<th>Picking</th>
-<th>Revision</th>
-<th>Guardado</th>
-<th>
-<select aria-label="Filtrar estado de pedidos" class="table-status-filter" id="mainStatusFilter">
-<option value="">Estado</option>
-</select>
-</th>
-</tr>
-</thead>
-<tbody>
-<!-- Data will be populated here -->
-</tbody>
-</table>
-</div>
-<div aria-live="polite" class="carrier-labels-panel is-hidden" id="carrierLabelsPanel">
-<div class="carrier-labels-head">
-<div>
-<strong id="carrierLabelsTitle">Etiquetas PDF</strong>
-<span id="carrierLabelsSummary">Conecta Drive para revisar archivos PDF.</span>
-</div>
-<button class="carrier-refresh-btn" id="carrierLabelsRefreshBtn" title="Actualizar etiquetas PDF" type="button">Actualizar</button>
-</div>
-<div class="carrier-labels-table-wrap">
-<table class="carrier-labels-table">
-<thead>
-<tr>
-<th>Archivo</th>
-<th>Carpeta</th>
-<th>Subido</th>
-<th>Impresion</th>
-<th>Accion</th>
-</tr>
-</thead>
-<tbody id="carrierLabelsBody">
-<tr>
-<td class="carrier-empty" colspan="5">Sin archivos PDF para mostrar.</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-<div class="results-actions">
-<button class="btn" id="downloadBtn">
-<svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>
+                        </div>
+                        <div class="selection-hint" id="selectedInfo"></div>
+                    </div>
+                    <div class="results-lookup-slot" id="resultsLookupSlot" hidden></div>
+                    <div class="results-meta" id="resultsMeta"></div>
+
+                    <div class="table-container">
+                        <table id="dataTable">
+                            <thead>
+                                <tr>
+                                    <th>Sel.</th>
+                                    <th>Proceso</th>
+                                    <th>Numero</th>
+                                    <th>Picker</th>
+                                    <th>Picking</th>
+                                    <th>Revision</th>
+                                    <th>Guardado</th>
+                                    <th>
+                                        <select class="table-status-filter" id="mainStatusFilter" aria-label="Filtrar estado de pedidos">
+                                            <option value="">Estado</option>
+                                        </select>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Data will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="carrier-labels-panel is-hidden" id="carrierLabelsPanel" aria-live="polite">
+                        <div class="carrier-labels-head">
+                            <div>
+                                <strong id="carrierLabelsTitle">Etiquetas PDF</strong>
+                                <span id="carrierLabelsSummary">Conecta Drive para revisar archivos PDF.</span>
+                            </div>
+                            <button class="carrier-refresh-btn" id="carrierLabelsRefreshBtn" type="button" title="Actualizar etiquetas PDF">Actualizar</button>
+                        </div>
+                        <div class="carrier-labels-table-wrap">
+                            <table class="carrier-labels-table">
+                                <thead>
+                                    <tr>
+                                        <th>Archivo</th>
+                                        <th>Carpeta</th>
+                                        <th>Subido</th>
+                                        <th>Impresion</th>
+                                        <th>Accion</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="carrierLabelsBody">
+                                    <tr>
+                                        <td colspan="5" class="carrier-empty">Sin archivos PDF para mostrar.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="results-actions">
+                        <button class="btn" id="downloadBtn">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                             Descargar CSV
                         </button>
-<label class="zebra-printer-control" for="zebraPrinterSelect">
-<span>Zebra</span>
-<select id="zebraPrinterSelect" title="Seleccionar impresora Zebra">
-<option value="default">Predeterminada</option>
-<option value="zebra02">ZEBRA 02</option>
-<option value="zebra05">ZEBRA 05</option>
-</select>
-</label>
-<button class="btn btn-zebra" id="printZebraBtn">
-<svg fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="20" xmlns="http://www.w3.org/2000/svg"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect height="8" width="12" x="6" y="14"></rect></svg>
+                        <label class="zebra-printer-control" for="zebraPrinterSelect">
+                            <span>Zebra</span>
+                            <select id="zebraPrinterSelect" title="Seleccionar impresora Zebra">
+                                <option value="default">Predeterminada</option>
+                                <option value="zebra02">ZEBRA 02</option>
+                                <option value="zebra05">ZEBRA 05</option>
+                            </select>
+                        </label>
+                        <button class="btn btn-zebra" id="printZebraBtn">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                             Imprimir en Zebra
                         </button>
-</div>
-</div>
-</div>
-<section aria-labelledby="orderLookupTitle" class="panel panel-right order-lookup-card">
-<!-- Header -->
-<div class="order-lookup-head">
-<div style="display:flex;align-items:center;gap:10px;">
-<div aria-hidden="true" class="ol-head-icon">
-<svg fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="17" xmlns="http://www.w3.org/2000/svg"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path><rect height="4" rx="2" width="6" x="9" y="3"></rect><line x1="9" x2="15" y1="12" y2="12"></line><line x1="9" x2="13" y1="16" y2="16"></line></svg>
-</div>
-<div class="order-lookup-head-copy">
-<h3 id="orderLookupTitle">Consulta de pedidos</h3>
-<p class="ol-head-subtitle">Estado en tiempo real</p>
-</div>
-</div>
-<span class="order-lookup-channel">Mercado Libre</span>
-</div>
-<!-- Stats -->
-<div class="ol-stats">
-<div class="ol-stat">
-<div class="ol-stat-num" id="olStatTotal"></div>
-<div class="ol-stat-label">Total</div>
-</div>
-<div class="ol-stat">
-<div class="ol-stat-num ol-stat-num--success" id="olStatWithState"></div>
-<div class="ol-stat-label">Con estado</div>
-</div>
-<div class="ol-stat">
-<div class="ol-stat-num ol-stat-num--warning" id="olStatND"></div>
-<div class="ol-stat-label">Sin estado</div>
-</div>
-</div>
-<div class="order-lookup-controls">
-<!-- Archivo Excel -->
-<div class="ol-controls-section">
-<p class="ol-section-label">Archivo Excel</p>
-<div class="order-lookup-upload-row">
-<button class="btn btn-secondary" id="orderLookupLoadBtn" type="button">
-<svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="13" xmlns="http://www.w3.org/2000/svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg>
+                    </div>
+                </div>
+            </div>
+
+            <section class="panel panel-right order-lookup-card" aria-labelledby="orderLookupTitle">
+
+                <!-- Header -->
+                <div class="order-lookup-head">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <div class="ol-head-icon" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+                        </div>
+                        <div class="order-lookup-head-copy">
+                            <h3 id="orderLookupTitle">Consulta de pedidos</h3>
+                            <p class="ol-head-subtitle">Estado en tiempo real</p>
+                        </div>
+                    </div>
+                    <span class="order-lookup-channel">Mercado Libre</span>
+                </div>
+
+                <!-- Stats -->
+                <div class="ol-stats">
+                    <div class="ol-stat">
+                        <div id="olStatTotal" class="ol-stat-num"></div>
+                        <div class="ol-stat-label">Total</div>
+                    </div>
+                    <div class="ol-stat">
+                        <div id="olStatWithState" class="ol-stat-num ol-stat-num--success"></div>
+                        <div class="ol-stat-label">Con estado</div>
+                    </div>
+                    <div class="ol-stat">
+                        <div id="olStatND" class="ol-stat-num ol-stat-num--warning"></div>
+                        <div class="ol-stat-label">Sin estado</div>
+                    </div>
+                </div>
+
+                <div class="order-lookup-controls">
+
+                    <!-- Archivo Excel -->
+                    <div class="ol-controls-section">
+                        <p class="ol-section-label">Archivo Excel</p>
+                        <div class="order-lookup-upload-row">
+                            <button class="btn btn-secondary" id="orderLookupLoadBtn" type="button">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                                 Cargar Excel
                             </button>
-<div aria-live="polite" class="order-lookup-file" id="orderLookupFileName">No hay archivo Excel cargado.</div>
-<input accept=".xlsx" id="orderLookupFileInput" type="file"/>
-</div>
-</div>
-<div class="ol-controls-section">
-<div class="order-lookup-filter-row">
-<!-- Búsqueda por pedido -->
-<label class="order-lookup-search-field" for="orderLookupInput">
-<span>Pedido</span>
-<div class="ol-search-wrapper">
-<svg aria-hidden="true" class="ol-search-icon" fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14" xmlns="http://www.w3.org/2000/svg"><circle cx="11" cy="11" r="8"></circle><line x1="21" x2="16.65" y1="21" y2="16.65"></line></svg>
-<input class="order-lookup-search-input" id="orderLookupInput" placeholder="Buscar por número de pedido" type="text"/>
-</div>
-</label>
-<!-- Estado y Ruta -->
-<div class="ol-filters-row">
-<label class="order-lookup-filter-field" for="orderLookupStateFilter">
-<span>Estado</span>
-<select id="orderLookupStateFilter">
-<option value="">Todos los estados</option>
-</select>
-</label>
-<label class="order-lookup-filter-field" for="orderLookupRouteFilter">
-<span>Ruta</span>
-<select id="orderLookupRouteFilter">
-<option value="">Todas las rutas</option>
-</select>
-</label>
-</div>
-<!-- Acciones -->
-<div class="order-lookup-actions">
-<button class="btn ol-btn-filter" id="orderLookupSearchBtn" type="button">
-<svg aria-hidden="true" fill="none" height="14" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="14" xmlns="http://www.w3.org/2000/svg"><line x1="4" x2="20" y1="6" y2="6"></line><line x1="8" x2="16" y1="12" y2="12"></line><line x1="11" x2="13" y1="18" y2="18"></line></svg>
+                            <div class="order-lookup-file" id="orderLookupFileName" aria-live="polite">No hay archivo Excel cargado.</div>
+                            <input type="file" id="orderLookupFileInput" accept=".xlsx">
+                        </div>
+                    </div>
+
+                    <div class="ol-controls-section">
+                        <div class="order-lookup-filter-row">
+
+                        <!-- Búsqueda por pedido -->
+                        <label class="order-lookup-search-field" for="orderLookupInput">
+                            <span>Pedido</span>
+                            <div class="ol-search-wrapper">
+                                <svg class="ol-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                <input id="orderLookupInput" class="order-lookup-search-input" type="text" placeholder="Buscar por número de pedido">
+                            </div>
+                        </label>
+
+                        <!-- Estado y Ruta -->
+                        <div class="ol-filters-row">
+                            <label class="order-lookup-filter-field" for="orderLookupStateFilter">
+                                <span>Estado</span>
+                                <select id="orderLookupStateFilter">
+                                    <option value="">Todos los estados</option>
+                                </select>
+                            </label>
+                            <label class="order-lookup-filter-field" for="orderLookupRouteFilter">
+                                <span>Ruta</span>
+                                <select id="orderLookupRouteFilter">
+                                    <option value="">Todas las rutas</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <!-- Acciones -->
+                        <div class="order-lookup-actions">
+                            <button class="btn ol-btn-filter" id="orderLookupSearchBtn" type="button">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
                                 Filtrar
                             </button>
-<button class="btn btn-secondary" id="orderLookupClearFiltersBtn" type="button">Limpiar</button>
-</div>
-</div>
-</div>
-</div>
-<div class="order-lookup-output">
-<div class="order-lookup-summary is-empty" id="orderLookupSummary">
-<strong>Sin resultados</strong>
-<span>Carga un archivo Excel para ver solo pedidos de Mercado Libre y filtrarlos por estado, ruta o numero.</span>
-</div>
-<div class="order-lookup-table-wrap is-hidden" id="orderLookupTableWrap">
-<table class="order-lookup-table">
-<thead id="orderLookupTableHead">
-<tr>
-<th>DATO2</th>
-<th>ESTADO</th>
-<th>RUTAS</th>
-</tr>
-</thead>
-<tbody id="orderLookupTableBody">
-<tr>
-<td class="order-lookup-empty-row" colspan="3">No hay coincidencias para mostrar.</td>
-</tr>
-</tbody>
-</table>
-</div>
-</div>
-</section>
-</div>
-<script>
+                            <button class="btn btn-secondary" id="orderLookupClearFiltersBtn" type="button">Limpiar</button>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="order-lookup-output">
+                    <div class="order-lookup-summary is-empty" id="orderLookupSummary">
+                        <strong>Sin resultados</strong>
+                        <span>Carga un archivo Excel para ver solo pedidos de Mercado Libre y filtrarlos por estado, ruta o numero.</span>
+                    </div>
+
+                    <div class="order-lookup-table-wrap is-hidden" id="orderLookupTableWrap">
+                        <table class="order-lookup-table">
+                            <thead id="orderLookupTableHead">
+                                <tr>
+                                    <th>DATO2</th>
+                                    <th>ESTADO</th>
+                                    <th>RUTAS</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orderLookupTableBody">
+                                <tr>
+                                    <td colspan="3" class="order-lookup-empty-row">No hay coincidencias para mostrar.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+    <script>
     (function(){
         function setupDashboardLookup(){
             var slot = document.getElementById('resultsLookupSlot');
@@ -2968,10 +5531,226 @@ body.is-dark-mode .btn-carrier-walmart {
         }
     }());
     </script>
-<script id="embeddedHistoryData" type="application/json">{"version":2,"documents":[]}</script>
-<script src="vendor/xlsx.full.min.js"></script>
-<link href="order-lookup.css" rel="stylesheet"/>
-<style data-dark-mode-fixes="">
+    <script id="embeddedHistoryData" type="application/json">{"version":2,"documents":[]}</script>
+    <script src="vendor/xlsx.full.min.js"></script>
+    <style data-inline-source="order-lookup.css">
+/* ============================================================
+   order-lookup.css — Rediseño visual del panel Consulta de Pedidos
+   Cargar DESPUÉS de styles.css en index.html
+   ============================================================ */
+
+/* ── Header ── */
+.order-lookup-head {
+  padding: 14px 16px 12px !important;
+  align-items: center !important;
+}
+
+.ol-head-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #EAF3DE;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #3B6D11;
+}
+
+.order-lookup-head-copy h3 {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--text, #222) !important;
+  letter-spacing: .02em !important;
+  margin: 0 !important;
+}
+
+.ol-head-subtitle {
+  font-size: 11px;
+  color: var(--text-muted, #888);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Mercado Libre badge — ámbar */
+.order-lookup-channel {
+  background: #FAEEDA !important;
+  color: #854F0B !important;
+  border: 0.5px solid #FAC775 !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  padding: 3px 10px !important;
+  border-radius: 20px !important;
+}
+
+/* ── Stats ── */
+.ol-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  border-bottom: 0.5px solid var(--border, #e0e0e0);
+  flex-shrink: 0;
+}
+
+.ol-stat {
+  padding: 12px 8px;
+  text-align: center;
+  border-right: 0.5px solid var(--border, #e0e0e0);
+}
+
+.ol-stat:last-child { border-right: none; }
+
+.ol-stat-num {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  min-height: 22px;
+  color: var(--text, #222);
+}
+
+.ol-stat-num--success { color: #3B6D11; }
+.ol-stat-num--warning { color: #854F0B; }
+
+.ol-stat-label {
+  font-size: 10px;
+  color: var(--text-muted, #888);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-top: 3px;
+}
+
+/* ── Sección de carga de archivo ── */
+.ol-upload-section {
+  padding: 12px 16px;
+  border-bottom: 0.5px solid var(--border, #e0e0e0);
+}
+
+.ol-section-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted, #888);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin: 0 0 8px;
+}
+
+/* ── Búsqueda con ícono ── */
+.ol-search-wrapper {
+  position: relative;
+}
+
+.ol-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text-muted, #888);
+}
+
+.ol-search-wrapper .order-lookup-search-input {
+  padding-left: 32px !important;
+}
+
+/* ── Botón Filtrar ── */
+.ol-btn-filter {
+  background: #1D9E75 !important;
+  color: #fff !important;
+  border-color: #1D9E75 !important;
+  font-weight: 500 !important;
+}
+
+.ol-btn-filter:hover {
+  background: #0F6E56 !important;
+  border-color: #0F6E56 !important;
+}
+
+.ol-btn-filter:active {
+  background: #0A5040 !important;
+}
+
+/* ── Tabla: cabecera con fondo sutil ── */
+.order-lookup-table thead tr {
+  background: var(--surface-soft, #f5f5f5);
+}
+
+.order-lookup-table th {
+  background: var(--surface-soft, #f5f5f5) !important;
+}
+
+/* ── Badges de ruta ── */
+.order-lookup-badge.is-flex {
+  background: #E6F1FB !important;
+  color: #185FA5 !important;
+  border-radius: 20px !important;
+}
+
+.order-lookup-badge.is-colecta {
+  background: #EAF3DE !important;
+  color: #27500A !important;
+  border-radius: 20px !important;
+}
+
+.order-lookup-badge.is-unknown {
+  background: var(--surface-soft, #f5f5f5) !important;
+  color: var(--text-muted, #888) !important;
+  border-radius: 20px !important;
+}
+
+/* ── Chips del summary ── */
+.ol-chip {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.ol-chip--success { background: #E1F5EE; color: #085041; }
+.ol-chip--warning { background: #FAEEDA; color: #854F0B; }
+
+/* ── Fila N/D con fondo sutil ── */
+.order-lookup-state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #EAF8F0;
+  color: #085041;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.order-lookup-state.is-nd,
+.order-lookup-state.is-empty {
+  background: #FAEEDA;
+  color: #854F0B;
+}
+
+.order-lookup-state.is-cancelled {
+  background: #FFF1F2;
+  color: #BE123C;
+}
+
+.order-lookup-table tr.is-nd {
+  background: var(--surface-soft, #f9f9f9);
+}
+
+.order-lookup-table tr.is-nd td {
+  color: var(--text-muted, #888);
+}
+
+.order-lookup-table tr.is-cancelled {
+  background: #FFF7F8;
+}
+
+.order-lookup-table tr.is-cancelled td {
+  color: #9F1239;
+}
+
+</style>
+    <style data-dark-mode-fixes>
 body.is-dark-mode {
   --bg-color: #070B14;
   --panel-bg: #0D1626;
@@ -3496,7 +6275,7 @@ body.is-dark-mode .app-message-close:hover {
   }
 }
 </style>
-<script data-app-script="" defer="" src="app.js"></script>
-<script defer="" src="drive-sync.js"></script>
-</div></body>
+    <script src="app.js" defer data-app-script></script>
+    <script src="drive-sync.js" defer></script>
+</body>
 </html>
