@@ -86,6 +86,11 @@
                 ZEBRA_PRINTER_STORAGE_KEY: 'novapet_meli_zebra_printer_v1',
                 UI_THEME_STORAGE_KEY: 'novapet_meli_ui_theme_v1',
                 SHEETJS_SCRIPT_SRC: 'vendor/xlsx.full.min.js',
+                SHEETJS_FALLBACK_SCRIPT_SRCS: Object.freeze([
+                    'vendor/xlsx.full.min.js',
+                    'xlsx.full.min.js',
+                    'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'
+                ]),
                 ZEBRA_BROWSER_PRINT_BASE_URL: 'http://127.0.0.1:9100',
                 ZEBRA_PRINTERS: Object.freeze({
                     default: {
@@ -2400,44 +2405,66 @@
                     );
                 },
 
-                ensureSheetJsLoaded() {
+                loadSheetJsScript(src) {
+                    return new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        const timeoutId = window.setTimeout(() => {
+                            script.onload = null;
+                            script.onerror = null;
+                            reject(new Error(`Tiempo agotado cargando ${src}`));
+                        }, 8000);
+                        const cleanup = () => {
+                            window.clearTimeout(timeoutId);
+                            script.onload = null;
+                            script.onerror = null;
+                        };
+
+                        script.onload = () => {
+                            cleanup();
+                            resolve();
+                        };
+                        script.onerror = () => {
+                            cleanup();
+                            reject(new Error(`No se pudo cargar ${src}`));
+                        };
+
+                        script.src = src;
+                        script.async = true;
+                        script.dataset.sheetjsRetry = 'true';
+                        (document.head || document.body || document.documentElement).appendChild(script);
+                    });
+                },
+
+                async ensureSheetJsLoaded() {
                     if (App.orderLookup.isSheetJsReady()) {
-                        return Promise.resolve(globalThis.XLSX);
+                        return globalThis.XLSX;
                     }
 
                     if (App.runtime.sheetJsLoadPromise) {
                         return App.runtime.sheetJsLoadPromise;
                     }
 
-                    App.runtime.sheetJsLoadPromise = new Promise((resolve, reject) => {
-                        const fail = () => reject(new Error(
-                            'No se pudo cargar la libreria de Excel. Verifica que la carpeta vendor este junto a index.html y recarga la pagina.'
-                        ));
-                        const script = document.createElement('script');
-                        const timeoutId = window.setTimeout(() => {
-                            script.onload = null;
-                            script.onerror = null;
-                            fail();
-                        }, 8000);
+                    App.runtime.sheetJsLoadPromise = (async () => {
+                        const sources = Array.from(new Set([
+                            App.config.SHEETJS_SCRIPT_SRC,
+                            ...App.config.SHEETJS_FALLBACK_SCRIPT_SRCS
+                        ]));
 
-                        script.src = App.config.SHEETJS_SCRIPT_SRC;
-                        script.async = true;
-                        script.dataset.sheetjsRetry = 'true';
-                        script.onload = () => {
-                            window.clearTimeout(timeoutId);
-                            if (App.orderLookup.isSheetJsReady()) {
-                                resolve(globalThis.XLSX);
-                                return;
+                        for (const src of sources) {
+                            try {
+                                await App.orderLookup.loadSheetJsScript(src);
+                                if (App.orderLookup.isSheetJsReady()) {
+                                    return globalThis.XLSX;
+                                }
+                            } catch (error) {
+                                console.warn('[App] SheetJS no disponible en', src, error);
                             }
-                            fail();
-                        };
-                        script.onerror = () => {
-                            window.clearTimeout(timeoutId);
-                            fail();
-                        };
+                        }
 
-                        (document.head || document.body || document.documentElement).appendChild(script);
-                    }).catch(error => {
+                        throw new Error(
+                            'No se pudo cargar la libreria de Excel. Verifica que vendor/xlsx.full.min.js o xlsx.full.min.js esten subidos junto a index.html y recarga la pagina.'
+                        );
+                    })().catch(error => {
                         App.runtime.sheetJsLoadPromise = null;
                         throw error;
                     });
@@ -3169,9 +3196,13 @@
                         const status = App.table.getOrderStatusForRow(row);
                         const isNd = App.table.isNdStatus(status);
                         const isCancelled = App.table.isCancelledStatus(status);
+                        const hasValidState = !isNd && !isCancelled;
 
                         if (row.type === 'flex') {
-                            counts.flex += 1;
+                            counts.flexTotal += 1;
+                            if (hasValidState) {
+                                counts.flex += 1;
+                            }
                             if (isNd) {
                                 counts.flexNd += 1;
                             }
@@ -3179,7 +3210,10 @@
                                 counts.flexCancelled += 1;
                             }
                         } else if (row.type === 'colecta') {
-                            counts.colecta += 1;
+                            counts.colectaTotal += 1;
+                            if (hasValidState) {
+                                counts.colecta += 1;
+                            }
                             if (isNd) {
                                 counts.colectaNd += 1;
                             }
@@ -3194,12 +3228,18 @@
                         if (isCancelled) {
                             counts.totalCancelled += 1;
                         }
+                        if (hasValidState) {
+                            counts.totalWithState += 1;
+                        }
                         counts.total += 1;
                         return counts;
                     }, {
                         flex: 0,
                         colecta: 0,
                         total: 0,
+                        flexTotal: 0,
+                        colectaTotal: 0,
+                        totalWithState: 0,
                         flexNd: 0,
                         flexCancelled: 0,
                         colectaNd: 0,
@@ -3247,8 +3287,8 @@
                         }
                     };
                     const buttonDefinitions = [
-                        { button: App.dom.flexStatBtn, filter: 'flex', count: counts.flex },
-                        { button: App.dom.colectaStatBtn, filter: 'colecta', count: counts.colecta },
+                        { button: App.dom.flexStatBtn, filter: 'flex', count: counts.flexTotal ?? counts.flex },
+                        { button: App.dom.colectaStatBtn, filter: 'colecta', count: counts.colectaTotal ?? counts.colecta },
                         { button: App.dom.totalStatBtn, filter: 'all', count: counts.total }
                     ];
 
