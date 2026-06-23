@@ -27,6 +27,7 @@ const DRIVE_CONFIG = Object.freeze({
     DEFAULT_PICKER:       'kmendoza',
     TOKEN_KEY:            'drive_token_v2',
     MODE_KEY:             'drive_mode',
+    AUTO_PICKER_KEY:      'drive_auto_picker_v1',
     WAS_ACTIVE_KEY:       'drive_was_active',
     API_KEY_KEY:          'drive_api_key',
     SOUND_SETTINGS_KEY:   'drive_sound_settings_v1',
@@ -364,12 +365,28 @@ function _setStatus(text, active = false) {
 function _setFileCount(n) {
     const el  = document.getElementById('drive-file-count');
     const num = document.getElementById('drive-file-count-num');
+    const banner = document.getElementById('drive-alert-banner');
+    const bannerText = document.getElementById('drive-alert-text');
     if (!el) return;
-    if (n === null || n === undefined) { el.style.display = 'none'; return; }
+    if (n === null || n === undefined) {
+        el.style.display = 'none';
+        if (banner) banner.hidden = true;
+        return;
+    }
     el.style.display = 'flex';
     if (num) num.textContent = n;
     el.title = 'Ver archivos del día';
     el.classList.toggle('has-files', Number(n) > 0);
+    const count = Number(n) || 0;
+    if (banner) {
+        banner.hidden = count <= 0;
+        banner.classList.toggle('is-active', count > 0);
+    }
+    if (bannerText) {
+        bannerText.textContent = count === 1
+            ? 'Se encontró 1 archivo disponible.'
+            : `Se encontraron ${count} archivos disponibles.`;
+    }
 }
 
 function _setToast(text, ok = true, timeout = 6000, urgent = false) {
@@ -386,6 +403,46 @@ function _setToast(text, ok = true, timeout = 6000, urgent = false) {
             t.classList.remove('drive-sync-toast--urgent');
         }
     }, timeout);
+}
+
+function _driveFolderUrl(folderId) {
+    const id = folderId || DRIVE_CONFIG.ROOT_FOLDER_ID;
+    return `https://drive.google.com/drive/folders/${encodeURIComponent(id)}`;
+}
+
+async function _resolveDriveOpenUrl() {
+    let folderId = DRIVE_CONFIG.ROOT_FOLDER_ID;
+
+    try {
+        if (typeof gapi !== 'undefined' && _gapi.ready && _getDriveAccessToken()) {
+            folderId = await _getDayFolderId(_state.offsetDay || 0, 'mercadolibre', { silent: true }) || folderId;
+        }
+    } catch (error) {
+        console.warn('[DriveSync] No se pudo resolver carpeta para abrir Drive:', error);
+    }
+
+    return _driveFolderUrl(folderId);
+}
+
+function _openDriveWindow(event) {
+    if (event?.target?.closest?.('#drive-file-count, button, select, input, a')) return;
+
+    const fallbackUrl = _driveFolderUrl(DRIVE_CONFIG.ROOT_FOLDER_ID);
+    const popup = window.open(fallbackUrl, '_blank');
+
+    if (!popup) {
+        const message = 'El navegador bloqueo la ventana de Google Drive. Permite ventanas emergentes para esta pagina.';
+        _setToast(message, false, 9000, true);
+        _showAppAlert('Google Drive', message, 'warning', 9000);
+        return;
+    }
+
+    try { popup.opener = null; } catch {}
+    _setToast('Abriendo Google Drive...', true, 3500);
+
+    _resolveDriveOpenUrl().then(url => {
+        if (url && url !== fallbackUrl) popup.location.href = url;
+    }).catch(error => console.warn('[DriveSync] No se pudo redirigir la ventana de Drive:', error));
 }
 
 function _showAppAlert(title, message, type = 'warning', timeout = 9000) {
@@ -534,7 +591,8 @@ function _showApiKeyInput() {
                placeholder="Google API Key…" autocomplete="off" spellcheck="false" />
         <button id="drive-apikey-save" class="ds-btn ds-btn--save">Guardar</button>`;
 
-    panel.insertBefore(row, panel.querySelector('.lp-drive-btns-row') ?? null);
+    const anchor = panel.querySelector('.drive-user-action-row') ?? panel.querySelector('.lp-drive-btns-row');
+    panel.insertBefore(row, anchor?.parentElement === panel ? anchor : null);
 
     const input = row.querySelector('#drive-apikey-input');
     const save  = row.querySelector('#drive-apikey-save');
@@ -560,10 +618,7 @@ function _removeApiKeyInput() {
 function _applyMode() {
     document.getElementById('drive-mode-auto')?.classList.toggle('is-active', _state.mode === 'auto');
     document.getElementById('drive-mode-manual')?.classList.toggle('is-active', _state.mode === 'manual');
-    const d = document.getElementById('drive-mode-desc');
-    if (d) d.innerHTML = _state.mode === 'auto'
-        ? 'Asigna a <strong>kmendoza</strong> y procesa automáticamente'
-        : 'Elegí usuario y procesá manualmente cada archivo';
+    _renderDrivePickerControl();
     _renderPending();
 }
 
@@ -598,12 +653,13 @@ function _renderPending() {
     if (noPend) noPend.style.display = 'none';
 
     const opts = _getPickerOptions();
+    const selectedPicker = _getAutoPickerValue();
     const frag = document.createDocumentFragment();
 
-    for (const item of _state.pending) {
+    for (const item of _sortPendingNewestFirst(_state.pending)) {
         const optHtml = opts.map(o =>
             `<option value="${_esc(o.v)}"
-                ${o.v.toLowerCase().includes(DRIVE_CONFIG.DEFAULT_PICKER) ? 'selected' : ''}>
+                ${o.v.toLowerCase() === selectedPicker.toLowerCase() ? 'selected' : ''}>
                 ${_esc(o.l)}</option>`
         ).join('');
 
@@ -646,7 +702,7 @@ function _initPendingListeners() {
         const id = row.dataset.id;
 
         if (e.target.closest('.ds-btn--process')) {
-            const picker = row.querySelector('.ds-pending-select')?.value || DRIVE_CONFIG.DEFAULT_PICKER;
+            const picker = row.querySelector('.ds-pending-select')?.value || _getAutoPickerValue();
             const btn    = row.querySelector('.ds-btn--process');
             if (btn) { btn.disabled = true; btn.textContent = 'Procesando...'; }
             await DriveSync.processItem(id, picker);
@@ -717,7 +773,7 @@ function _renderExistingPanel() {
             if (btn && !btn.disabled) {
                 const fileId = btn.dataset.fileId;
                 const sel    = panel.querySelector(`.ds-ep-select[data-file-id="${CSS.escape(fileId)}"]`);
-                const picker = sel?.value || DRIVE_CONFIG.DEFAULT_PICKER;
+                const picker = sel?.value || _getAutoPickerValue();
                 btn.disabled    = true;
                 btn.textContent = 'Procesando...';
                 await DriveSync.processExisting(fileId, picker);
@@ -751,35 +807,43 @@ function _renderExistingPanel() {
 
     // ── Body ──
     const opts    = _getPickerOptions();
+    const selectedPicker = _getAutoPickerValue();
     const optHtml = opts.map(o =>
-        `<option value="${_esc(o.v)}" ${o.v === DRIVE_CONFIG.DEFAULT_PICKER ? 'selected' : ''}>${_esc(o.l)}</option>`
+        `<option value="${_esc(o.v)}" ${o.v.toLowerCase() === selectedPicker.toLowerCase() ? 'selected' : ''}>${_esc(o.l)}</option>`
     ).join('');
 
     if (_state.knownFiles.length === 0) {
         body.innerHTML = `<div class="ds-ep-empty">Sin archivos en esta carpeta.</div>`;
     } else {
         const frag = document.createDocumentFragment();
-        for (const f of _state.knownFiles) {
+        const orderedFiles = _sortDriveFilesNewestFirst(_state.knownFiles);
+        for (const f of orderedFiles) {
             const isDone = _state.processedIds.has(f.id);
             const row    = document.createElement('div');
             row.className = `ds-ep-file-row${isDone ? ' ds-ep-file-row--done' : ''}`;
             const uploadDate = _formatDriveDate(f.createdTime);
             const uploadTime = _formatDriveTime(f.createdTime);
+            const folderName = f.folder || 'Drive';
+            const folderKey = _normalizeFolder(folderName);
+            const typeKey = folderKey.includes('colecta') ? 'colecta'
+                : folderKey.includes('flex') ? 'flex'
+                : '';
+            const typeLabel = typeKey ? typeKey.toUpperCase() : '';
             row.innerHTML = `
                 <div class="ds-ep-file-top">
                     <span class="ds-ep-file-kind">TXT</span>
                     <div class="ds-ep-file-copy">
                         <span class="ds-ep-file-name" title="${_esc(f.name)}">${_esc(f.name)}</span>
-                        <span class="ds-ep-file-folder">${_esc(f.folder || 'Drive')}</span>
+                        <span class="ds-ep-file-folder">${_esc(folderName)}</span>
                     </div>
                     <div class="ds-ep-file-meta">
                         ${uploadDate ? `<span class="ds-ep-file-date">${uploadDate}</span>` : ''}
                         ${uploadTime ? `<span class="ds-ep-file-time">${uploadTime}</span>` : ''}
                     </div>
                 </div>
-                <div class="ds-ep-file-actions">
+                <div class="ds-ep-file-actions${isDone ? ' is-done' : ''}">
                     ${isDone
-                        ? `<span class="ds-ep-done-badge">Procesado</span>`
+                        ? `<span class="ds-ep-done-badge">Procesado</span>${typeLabel ? `<span class="ds-ep-type-chip ds-ep-type-chip--${typeKey}">${typeLabel}</span>` : ''}`
                         : `<select class="ds-ep-select" id="drive-existing-picker-${_esc(f.id)}" name="driveExistingPicker" data-file-id="${_esc(f.id)}">${optHtml}</select>
                            <button class="ds-btn ds-btn--process ds-ep-btn-process"
                                data-file-id="${_esc(f.id)}">Procesar</button>`
@@ -788,6 +852,13 @@ function _renderExistingPanel() {
             frag.appendChild(row);
         }
         body.replaceChildren(frag);
+        const processedCount = orderedFiles.filter(f => _state.processedIds.has(f.id)).length;
+        const summary = document.createElement('div');
+        summary.className = 'ds-ep-summary';
+        summary.textContent = processedCount === _state.knownFiles.length
+            ? 'Todo actualizado'
+            : `${processedCount} de ${_state.knownFiles.length} procesados`;
+        body.appendChild(summary);
     }
 
     _state.panelOpen = true;
@@ -1531,6 +1602,14 @@ function _sortDriveFilesNewestFirst(files) {
     });
 }
 
+function _sortPendingNewestFirst(items) {
+    return [...items].sort((a, b) => {
+        const at = new Date(a.uploadedAt || a.detectedAt || 0).getTime();
+        const bt = new Date(b.uploadedAt || b.detectedAt || 0).getTime();
+        return bt - at;
+    });
+}
+
 async function _loadPdfSourceFiles(sourceKey, offset = 0) {
     const source = _getSourceConfig(sourceKey);
     const dayId = await _getDayFolderId(offset, source.key, { silent: true });
@@ -2066,7 +2145,7 @@ async function _scan(firstScan) {
         _syncSeenFilesForToday();
         await _ensureFreshToken();
         const dayId = await _getDayFolderId(0);
-        const files = dayId ? await _getAllTxtRecursive(dayId) : [];
+        const files = _sortDriveFilesNewestFirst(dayId ? await _getAllTxtRecursive(dayId) : []);
         await _scanPdfSources(firstScan);
 
         if (firstScan) {
@@ -2256,9 +2335,10 @@ async function _handleNewFile(file) {
             fileId: file.id,
             pendingOnly: false,
         });
-        await _processFile({ fileId: file.id, name: file.name, text, bulkCount, folder: file.folder || 'Drive', picker: DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: file.createdTime || null, autoOutput: true });
+        await _processFile({ fileId: file.id, name: file.name, text, bulkCount, folder: file.folder || 'Drive', picker: _getAutoPickerValue(), uploadedAt: file.createdTime || null, autoOutput: true });
     } else {
         _state.pending.push({ id: file.id, name: file.name, folder: file.folder || 'Drive', detectedAt: new Date(), uploadedAt: file.createdTime || null, bulkCount, text });
+        _state.pending = _sortPendingNewestFirst(_state.pending);
         _announceDriveArrival({
             title: 'Archivo pendiente en Drive',
             message: `${alertMessage}. Requiere procesamiento manual.`,
@@ -2359,6 +2439,64 @@ function _getPickerOptions() {
         : [{ v: DRIVE_CONFIG.DEFAULT_PICKER, l: DRIVE_CONFIG.DEFAULT_PICKER }];
 }
 
+function _getAutoPickerValue() {
+    const options = _getPickerOptions();
+    const stored = (() => {
+        try { return localStorage.getItem(DRIVE_CONFIG.AUTO_PICKER_KEY) || ''; }
+        catch { return ''; }
+    })();
+    const normalizedStored = stored.trim().toLowerCase();
+    const selected = options.find(o => o.v.toLowerCase() === normalizedStored)
+        || options.find(o => o.v.toLowerCase() === DRIVE_CONFIG.DEFAULT_PICKER.toLowerCase())
+        || options[0];
+    return selected?.v || DRIVE_CONFIG.DEFAULT_PICKER;
+}
+
+function _setAutoPickerValue(value) {
+    const options = _getPickerOptions();
+    const selected = options.find(o => o.v.toLowerCase() === String(value || '').toLowerCase())
+        || options[0]
+        || { v: DRIVE_CONFIG.DEFAULT_PICKER };
+    try { localStorage.setItem(DRIVE_CONFIG.AUTO_PICKER_KEY, selected.v); }
+    catch {}
+    _renderDrivePickerControl();
+    _renderPending();
+    _renderExistingPanel();
+}
+
+function _renderDrivePickerControl() {
+    const wrap = document.getElementById('drive-mode-desc');
+    if (!wrap) return;
+
+    const options = _getPickerOptions();
+    const selected = _getAutoPickerValue();
+    const modeLabel = _state.mode === 'auto' ? 'Usuario' : 'Sugerido';
+
+    wrap.classList.add('drive-picker-row');
+    wrap.innerHTML = `
+        <label class="drive-picker-control" for="drive-auto-picker">
+            <span>${_esc(modeLabel)}</span>
+            <select id="drive-auto-picker" name="driveAutoPicker">
+                ${options.map(o => `<option value="${_esc(o.v)}" ${o.v.toLowerCase() === selected.toLowerCase() ? 'selected' : ''}>${_esc(o.l)}</option>`).join('')}
+            </select>
+        </label>`;
+
+    wrap.querySelector('#drive-auto-picker')?.addEventListener('change', event => {
+        _setAutoPickerValue(event.target.value);
+    });
+}
+
+function _observePickerOptions() {
+    const sel = document.getElementById('picker');
+    if (!sel || sel.dataset.driveObserved === '1') return;
+    sel.dataset.driveObserved = '1';
+    new MutationObserver(() => _renderDrivePickerControl()).observe(sel, {
+        childList: true,
+        subtree: true,
+    });
+    sel.addEventListener('change', () => _renderDrivePickerControl());
+}
+
 // ─── Auto-inyección de estilos ────────────────────────────────────────────────
 // El JS inyecta su propio <style> en el <head> al inicializar.
 // No requiere un archivo CSS separado ni un <link> adicional en index.html.
@@ -2410,6 +2548,45 @@ function _injectStyles() {
   border-color: rgba(0,172,71,0.28);
   background: rgba(255,255,255,0.92);
   color: #007C34;
+}
+
+.drive-picker-row {
+  padding: 0 !important;
+  text-align: left !important;
+}
+.drive-picker-control {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 4px 5px 4px 9px;
+  border: 1px solid #E2EAE5;
+  border-radius: 10px;
+  background: #FFFFFF;
+}
+.drive-picker-control > span {
+  color: #64746C;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.drive-picker-control select {
+  width: 100%;
+  min-width: 0;
+  height: 29px;
+  padding: 0 24px 0 9px;
+  border: 0;
+  border-radius: 8px;
+  background: #F6F8F7;
+  color: #17301F;
+  font-size: 12px;
+  font-weight: 800;
+  outline: none;
+}
+.drive-picker-control select:focus {
+  box-shadow: 0 0 0 3px rgba(0, 172, 71, 0.12);
 }
 
 #drive-sync-toast.drive-sync-toast--error {
@@ -2644,6 +2821,663 @@ body.is-dark-mode #drive-mode-manual:hover:not(.is-active) {
 }
 .ds-ep-empty, .ds-ep-loading {
   padding: 14px; text-align: center; color: #5C6F63; font-size: 12px;
+}
+
+/* Ajuste visual para acercar el panel al mockup aprobado */
+#drive-sync-panel {
+  gap: 11px !important;
+  padding: 14px 12px !important;
+  background: #FFFFFF !important;
+  border-color: #DFE7E2 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08) !important;
+}
+#drive-sync-panel.is-monitoring {
+  border-color: #D9E8DF !important;
+}
+.lp-drive-header {
+  grid-template-columns: 32px minmax(0, 1fr) auto !important;
+  grid-template-rows: auto auto !important;
+  gap: 2px 10px !important;
+  padding: 7px 4px 12px !important;
+  cursor: pointer !important;
+  border-radius: 12px !important;
+  transition: background .16s ease, box-shadow .16s ease, transform .16s ease !important;
+}
+.lp-drive-header:hover {
+  background: rgba(0, 172, 71, 0.06) !important;
+  box-shadow: inset 0 0 0 1px rgba(0, 172, 71, 0.08) !important;
+}
+.lp-drive-header:focus-visible {
+  outline: 3px solid rgba(0, 172, 71, 0.22) !important;
+  outline-offset: 3px !important;
+}
+.lp-drive-header > svg {
+  grid-row: 1 / 3 !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+.lp-drive-copy {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  display: grid !important;
+  gap: 2px !important;
+  min-width: 0 !important;
+}
+.lp-drive-title {
+  color: #111827 !important;
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  line-height: 1.1 !important;
+}
+#drive-sync-status {
+  color: #00883A !important;
+  font-size: 11px !important;
+  font-weight: 850 !important;
+}
+#drive-file-count {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  align-self: start !important;
+  justify-self: start !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  gap: 4px !important;
+  flex-direction: row !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  color: #4B5563 !important;
+  transform: none !important;
+}
+#drive-file-count:hover {
+  background: transparent !important;
+  border-color: transparent !important;
+  transform: none !important;
+}
+#drive-file-count-num,
+#drive-file-count .drive-file-count-label {
+  color: #4B5563 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+}
+#drive-token-clock {
+  grid-column: 3 !important;
+  grid-row: 1 / 3 !important;
+  align-self: center !important;
+  justify-self: end !important;
+  margin-left: 0 !important;
+  min-height: 31px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  border: 1px solid rgba(0, 172, 71, 0.16) !important;
+  border-radius: 9px !important;
+  background: rgba(0, 172, 71, 0.08) !important;
+  color: #00883A !important;
+  font-weight: 900 !important;
+}
+.lp-drive-modes {
+  height: 38px !important;
+  padding: 3px !important;
+  border-radius: 10px !important;
+  background: #F4F6F5 !important;
+}
+#drive-mode-auto,
+#drive-mode-manual {
+  height: 30px !important;
+  border-radius: 8px !important;
+  font-size: 11px !important;
+}
+#drive-day-status {
+  min-height: 58px !important;
+  padding: 11px 10px !important;
+  background: #FFFFFF !important;
+  border-color: #E1E9E4 !important;
+  border-radius: 10px !important;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.035) !important;
+}
+#drive-day-icon {
+  width: 25px !important;
+  height: 25px !important;
+  color: #111827 !important;
+  flex-shrink: 0 !important;
+}
+.lp-drive-folder-btn {
+  height: 32px !important;
+  min-width: 86px !important;
+  border-color: #DDE5E1 !important;
+  background: #FFFFFF !important;
+  color: #374151 !important;
+  font-weight: 750 !important;
+}
+.drive-user-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(188px, .95fr);
+  gap: 8px;
+  align-items: stretch;
+}
+.drive-user-action-row .drive-picker-row,
+.drive-user-action-row .lp-drive-btns-row {
+  min-width: 0;
+}
+.drive-user-action-row .drive-picker-control {
+  height: 100%;
+  min-height: 45px;
+}
+.drive-user-action-row .lp-drive-btns-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 8px !important;
+  position: relative !important;
+}
+.drive-user-action-row #drive-sync-btn,
+.drive-user-action-row #drive-sync-stop {
+  width: 100%;
+  min-width: 0;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  line-height: 1.05;
+  white-space: normal;
+}
+#drive-sync-btn,
+#drive-sync-stop {
+  min-height: 45px !important;
+  border-radius: 10px !important;
+  font-size: 13px !important;
+}
+.lp-drive-sound-trigger {
+  width: 45px !important;
+  min-width: 45px !important;
+  border-radius: 10px !important;
+}
+#drive-pending-section {
+  padding: 10px 0 0 !important;
+  background: transparent !important;
+  border-width: 1px 0 0 !important;
+  border-color: #E4EBE7 !important;
+  border-radius: 0 !important;
+}
+.lp-pending-label {
+  padding: 0 2px !important;
+  color: #111827 !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+}
+.lp-pending-label::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 999px;
+  background: #F59E0B;
+}
+.lp-pending-label span {
+  margin-right: auto;
+}
+#drive-no-pending {
+  margin-top: 7px !important;
+  padding: 16px 10px !important;
+  background: #F8FAF9 !important;
+  border: 1px solid #E4EBE7 !important;
+  border-radius: 10px !important;
+  color: #667085 !important;
+}
+.ds-ep-panel {
+  margin-top: 0 !important;
+  border-color: #DDEBE4 !important;
+  border-radius: 10px !important;
+  background: #FFFFFF !important;
+  box-shadow: 0 5px 16px rgba(15, 23, 42, 0.045) !important;
+}
+.ds-ep-header {
+  padding: 9px 8px !important;
+  background: linear-gradient(180deg, #EFFAF4 0%, #F7FCF9 100%) !important;
+  border-color: #DDEBE4 !important;
+}
+.ds-ep-title {
+  font-size: 11px !important;
+  letter-spacing: .04em !important;
+}
+.ds-ep-subtitle {
+  color: #0F6E56 !important;
+  font-size: 10px !important;
+}
+.ds-ep-body {
+  max-height: 310px !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  display: block !important;
+}
+.ds-ep-file-row {
+  min-height: 76px !important;
+  padding: 11px 12px !important;
+  border-width: 0 0 1px !important;
+  border-color: #E8EEE9 !important;
+  border-radius: 0 !important;
+  background: #FFFFFF !important;
+  box-shadow: none !important;
+}
+.ds-ep-file-row--done {
+  background: #FFFFFF !important;
+}
+.ds-ep-file-top {
+  grid-template-columns: 30px minmax(0, 1fr) auto !important;
+  gap: 8px !important;
+}
+.ds-ep-file-kind {
+  width: 26px !important;
+  height: 26px !important;
+  border-radius: 7px !important;
+  background: #EEF2FF !important;
+  color: #4F46E5 !important;
+  font-size: 9px !important;
+}
+.ds-ep-file-name {
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  color: #111827 !important;
+}
+.ds-ep-file-folder {
+  color: #4B5563 !important;
+  font-size: 11px !important;
+  font-weight: 650 !important;
+}
+.ds-ep-file-date,
+.ds-ep-file-time {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+}
+.ds-ep-file-actions.is-done {
+  justify-content: flex-end !important;
+  padding-left: 38px !important;
+}
+.ds-ep-done-badge {
+  flex: 0 0 auto !important;
+  min-width: 86px !important;
+  padding: 5px 9px !important;
+  border-radius: 7px !important;
+  background: #E7F8EE !important;
+  color: #00883A !important;
+  font-size: 10px !important;
+}
+.ds-ep-type-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 54px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 900;
+}
+.ds-ep-type-chip--flex {
+  background: #E8F8ED;
+  color: #138A3D;
+}
+.ds-ep-type-chip--colecta {
+  background: #EAF2FF;
+  color: #1167D8;
+}
+.ds-ep-summary {
+  margin: 9px 10px 10px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: #EFFAF4;
+  color: #00883A;
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+}
+
+/* Variante 2: Alertas, panel mas ancho y tarjetas mas amplias */
+.panels-container {
+  grid-template-columns: 400px minmax(0, 1fr) !important;
+}
+
+.panel-left,
+.panel-left.panel {
+  width: 400px !important;
+  padding-left: 22px !important;
+  padding-right: 22px !important;
+}
+
+#drive-sync-panel {
+  padding: 18px 18px 20px !important;
+  gap: 15px !important;
+}
+
+.lp-drive-header {
+  grid-template-columns: 36px minmax(0, 1fr) auto !important;
+  gap: 3px 12px !important;
+  padding: 7px 4px 14px !important;
+  cursor: pointer !important;
+  border-radius: 13px !important;
+  transition: background .16s ease, box-shadow .16s ease, transform .16s ease !important;
+}
+
+.lp-drive-header:hover {
+  background: rgba(0, 172, 71, 0.06) !important;
+  box-shadow: inset 0 0 0 1px rgba(0, 172, 71, 0.08) !important;
+}
+
+.lp-drive-header:focus-visible {
+  outline: 3px solid rgba(0, 172, 71, 0.22) !important;
+  outline-offset: 3px !important;
+}
+
+.lp-drive-header > svg {
+  width: 31px !important;
+  height: 31px !important;
+}
+
+.lp-drive-title {
+  font-size: 16px !important;
+}
+
+#drive-sync-status,
+#drive-file-count-num,
+#drive-file-count .drive-file-count-label {
+  font-size: 12px !important;
+}
+
+#drive-token-clock {
+  min-height: 36px !important;
+  padding: 0 12px !important;
+  border-radius: 11px !important;
+}
+
+.lp-drive-modes {
+  height: 34px !important;
+  padding: 2px !important;
+  gap: 2px !important;
+  border-radius: 999px !important;
+  background: #F7FAF8 !important;
+  border-color: #E3ECE6 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.82) !important;
+}
+
+#drive-mode-auto,
+#drive-mode-manual {
+  position: relative !important;
+  height: 28px !important;
+  border-radius: 999px !important;
+  font-size: 11px !important;
+  font-weight: 850 !important;
+  letter-spacing: 0 !important;
+  color: #68786F !important;
+}
+
+#drive-mode-auto.is-active,
+#drive-mode-manual.is-active {
+  background: #FFFFFF !important;
+  color: #008C3A !important;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08), inset 0 0 0 1px rgba(0, 172, 71, 0.10) !important;
+}
+
+#drive-mode-manual.is-active {
+  color: #1F5FAE !important;
+}
+
+#drive-mode-auto.is-active::after,
+#drive-mode-manual.is-active::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 50% !important;
+  bottom: 4px !important;
+  width: 18px !important;
+  height: 2px !important;
+  border-radius: 999px !important;
+  transform: translateX(-50%) !important;
+  background: #00B34D !important;
+}
+
+#drive-mode-manual.is-active::after {
+  background: #1F5FAE !important;
+}
+
+#drive-alert-banner {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 172, 71, 0.35);
+  background: linear-gradient(180deg, #ECFFF4 0%, #F8FFFB 100%);
+  color: #007C34;
+  box-shadow: 0 8px 20px rgba(0, 172, 71, 0.10);
+  cursor: pointer;
+}
+
+#drive-alert-banner[hidden] {
+  display: none !important;
+}
+
+.drive-alert-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: #00A846;
+  color: #FFFFFF;
+  box-shadow: 0 8px 18px rgba(0, 172, 71, 0.25);
+}
+
+.drive-alert-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.drive-alert-copy strong {
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .02em;
+  color: #007C34;
+}
+
+.drive-alert-copy small {
+  font-size: 12px;
+  font-weight: 650;
+  color: #344E41;
+}
+
+.drive-alert-arrow {
+  font-size: 27px;
+  font-weight: 700;
+  color: #007C34;
+  line-height: 1;
+}
+
+#drive-day-status {
+  min-height: 64px !important;
+  padding: 12px 13px !important;
+}
+
+#drive-day-icon {
+  width: 29px !important;
+  height: 29px !important;
+}
+
+.lp-drive-folder-btn {
+  min-width: 104px !important;
+  height: 36px !important;
+}
+
+.drive-user-action-row {
+  grid-template-columns: minmax(118px, .62fr) minmax(0, 1fr) !important;
+  gap: 8px !important;
+  align-items: stretch !important;
+}
+
+.drive-user-action-row .drive-picker-control {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 3px !important;
+  min-height: 46px !important;
+  padding: 6px 7px !important;
+  border-radius: 12px !important;
+  border-color: #DCE8E1 !important;
+  background: linear-gradient(180deg, #FFFFFF 0%, #F7FAF8 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.80), 0 4px 12px rgba(15, 23, 42, 0.04) !important;
+}
+
+.drive-user-action-row .drive-picker-control > span {
+  font-size: 9px !important;
+  line-height: 1 !important;
+  letter-spacing: .08em !important;
+  color: #607168 !important;
+}
+
+.drive-user-action-row .drive-picker-control select {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 26px !important;
+  padding: 0 22px 0 8px !important;
+  border: 1px solid #E2EAE5 !important;
+  background: #FFFFFF !important;
+  color: #10251A !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  text-overflow: ellipsis !important;
+}
+
+.drive-user-action-row .lp-drive-btns-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 8px !important;
+  position: relative !important;
+}
+
+.drive-user-action-row #drive-sync-btn,
+.drive-user-action-row #drive-sync-stop {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 46px !important;
+  padding: 0 9px !important;
+  gap: 6px !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1.05 !important;
+  white-space: nowrap !important;
+  border-radius: 12px !important;
+  box-shadow: 0 9px 18px rgba(0, 172, 71, 0.16), inset 0 1px 0 rgba(255,255,255,0.22) !important;
+}
+
+#drive-sync-btn,
+#drive-sync-stop {
+  min-height: 52px !important;
+  font-size: 14px !important;
+}
+
+.lp-drive-sound-trigger {
+  width: 52px !important;
+  min-width: 52px !important;
+}
+
+#drive-no-pending {
+  padding: 20px 12px !important;
+}
+
+.ds-ep-panel {
+  border-radius: 13px !important;
+}
+
+.ds-ep-header {
+  padding: 11px 10px !important;
+}
+
+.ds-ep-file-row {
+  min-height: 88px !important;
+  padding: 13px 14px !important;
+}
+
+.ds-ep-file-top {
+  grid-template-columns: 34px minmax(0, 1fr) auto !important;
+  gap: 11px !important;
+}
+
+.ds-ep-file-kind {
+  width: 30px !important;
+  height: 30px !important;
+}
+
+.ds-ep-file-name {
+  font-size: 13px !important;
+}
+
+.ds-ep-file-folder {
+  font-size: 12px !important;
+}
+
+.ds-ep-done-badge,
+.ds-ep-type-chip {
+  min-width: 94px !important;
+  padding-top: 7px !important;
+  padding-bottom: 7px !important;
+}
+
+body.is-dark-mode #drive-alert-banner {
+  background: linear-gradient(180deg, rgba(16,185,129,0.18), rgba(16,185,129,0.08)) !important;
+  border-color: rgba(52, 211, 153, 0.34) !important;
+  color: #D1FAE5 !important;
+}
+
+body.is-dark-mode .drive-alert-icon {
+  background: #10B981 !important;
+}
+
+body.is-dark-mode .drive-alert-copy strong,
+body.is-dark-mode .drive-alert-arrow {
+  color: #A7F3D0 !important;
+}
+
+body.is-dark-mode .drive-alert-copy small {
+  color: #D1FAE5 !important;
+}
+
+body.is-dark-mode .drive-picker-control {
+  background: #13233B !important;
+  border-color: rgba(148, 163, 184, 0.26) !important;
+}
+
+body.is-dark-mode .drive-user-action-row .drive-picker-control {
+  background: linear-gradient(180deg, #13233B 0%, #101D31 100%) !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 18px rgba(0,0,0,0.18) !important;
+}
+
+body.is-dark-mode .drive-picker-control > span {
+  color: #B8C7DC !important;
+}
+
+body.is-dark-mode .drive-picker-control select {
+  background: #0A1220 !important;
+  border-color: rgba(148, 163, 184, 0.30) !important;
+  color: #F1F7FF !important;
+}
+
+body.is-dark-mode .drive-user-action-row .drive-picker-control select {
+  background: #0A1220 !important;
+  border-color: rgba(148, 163, 184, 0.30) !important;
+  color: #F1F7FF !important;
+}
+
+@media (max-width: 900px) {
+  .panels-container {
+    grid-template-columns: 1fr !important;
+  }
+
+  .panel-left,
+  .panel-left.panel {
+    width: 100% !important;
+  }
 }
 
 /* Reloj de expiración del token */
@@ -3246,6 +4080,7 @@ const DriveSync = {
     showLabelSource: _setActiveLabelSource,
     refreshCarrierLabels: _refreshCarrierLabels,
     printCarrierLabels: _printCarrierLabels,
+    openDriveWindow: _openDriveWindow,
 
     setMode(mode) {
         _state.mode = mode;
@@ -3257,7 +4092,7 @@ const DriveSync = {
         const idx = _state.pending.findIndex(p => p.id === id);
         if (idx === -1) return;
         const item = _state.pending[idx];
-        await _processFile({ fileId: item.id, name: item.name, text: item.text, bulkCount: item.bulkCount, folder: item.folder, picker: pickerOverride || DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: item.uploadedAt || null });
+        await _processFile({ fileId: item.id, name: item.name, text: item.text, bulkCount: item.bulkCount, folder: item.folder, picker: pickerOverride || _getAutoPickerValue(), uploadedAt: item.uploadedAt || null });
         _state.pending.splice(idx, 1);
         _clearArrivalReminders(id);
         _renderPending();
@@ -3302,7 +4137,7 @@ const DriveSync = {
         try {
             const dayId = await _getDayFolderId(_state.offsetDay);
             if (dayId) {
-                const files = await _getAllTxtRecursive(dayId);
+                const files = _sortDriveFilesNewestFirst(await _getAllTxtRecursive(dayId));
                 _state.knownFiles = files;
                 _setFileCount(files.length);
             } else {
@@ -3321,7 +4156,7 @@ const DriveSync = {
         try {
             const text      = await _downloadText(fileId);
             const bulkCount = _countBulks(text);
-            await _processFile({ fileId, name: file.name, text, bulkCount, folder: file.folder || 'Drive', picker: pickerOverride || DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: file.createdTime || null });
+            await _processFile({ fileId, name: file.name, text, bulkCount, folder: file.folder || 'Drive', picker: pickerOverride || _getAutoPickerValue(), uploadedAt: file.createdTime || null });
             _renderExistingPanel();
         } catch {
             _setToast('Error al procesar: ' + file.name, false);
@@ -3335,6 +4170,7 @@ const DriveSync = {
             if (!document.getElementById('drive-sync-btn')) { setTimeout(attach, 100); return; }
             _restoreConnectBtn();
             if (Notification.permission === 'default') Notification.requestPermission();
+            _observePickerOptions();
             _applyMode();
             _initPendingListeners();
             _injectSoundTestButton();
