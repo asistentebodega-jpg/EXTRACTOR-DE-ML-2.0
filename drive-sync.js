@@ -33,6 +33,7 @@ const DRIVE_CONFIG = Object.freeze({
     CARRIER_PRINTED_KEY:  'drive_carrier_printed_labels_v1',
     TOKEN_REFRESH_MARGIN: 5 * 60 * 1000,
     ALERT_ICON:           'https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_48dp.png',
+    RECENT_FIRST_SCAN_ALERT_MS: 45 * 60 * 1000,
     ARRIVAL_REPEAT_DELAYS: Object.freeze([6_000, 15_000]),
     PENDING_REMINDER_DELAYS: Object.freeze([30_000, 90_000, 180_000]),
 });
@@ -310,7 +311,7 @@ const _stateRaw = {
     processed:    _loadProcessedList(),
     processedIds: _loadProcessedIds(),
     arrivalAlertTimers: Object.create(null),
-    panelOpen:    false,
+    panelOpen:    true,
     offsetDay:    0,
     _refreshing:  false,
     _scanning:    false,
@@ -357,6 +358,7 @@ function _setStatus(text, active = false) {
     if (!s) return;
     s.textContent = text;
     s.classList.toggle('drive-sync-status--active', active);
+    document.getElementById('drive-sync-panel')?.classList.toggle('is-monitoring', active);
 }
 
 function _setFileCount(n) {
@@ -367,6 +369,7 @@ function _setFileCount(n) {
     el.style.display = 'flex';
     if (num) num.textContent = n;
     el.title = 'Ver archivos del día';
+    el.classList.toggle('has-files', Number(n) > 0);
 }
 
 function _setToast(text, ok = true, timeout = 6000, urgent = false) {
@@ -418,9 +421,17 @@ function _notifyNative(title, body, tag) {
 }
 
 function _pulseAlertTargets() {
+    const panel = document.getElementById('drive-sync-panel');
+    if (panel) {
+        panel.classList.remove('drive-panel--urgent');
+        void panel.offsetWidth;
+        panel.classList.add('drive-panel--urgent');
+        window.setTimeout(() => panel.classList.remove('drive-panel--urgent'), 12000);
+    }
+
     [
         document.getElementById('notificationBellBtn'),
-        document.getElementById('drive-sync-panel'),
+        panel,
         document.getElementById('drive-file-count'),
     ].filter(Boolean).forEach((el) => {
         el.classList.remove('drive-alert-pulse');
@@ -483,6 +494,21 @@ function _announceDriveArrival({ title, message, fileId, pendingOnly = false }) 
     _scheduleArrivalReminders({ fileId, title, message, pendingOnly });
 }
 
+function _announceDriveProcessed({ name, bulkCount, picker, fileId, autoOutput = false }) {
+    const message = `"${name}" procesado: ${bulkCount} pedido${bulkCount !== 1 ? 's' : ''} para ${picker}${autoOutput ? '. Descarga e impresion automatica ejecutadas.' : '.'}`;
+    _audioAlert('arrival');
+    _setToast(message, true, 12000, true);
+    _notifyNative('Etiqueta procesada', message, `drive-processed-${fileId || Date.now()}`);
+    _showAppAlert('Etiqueta procesada', message, 'warning', 12000);
+    _pulseAlertTargets();
+    _scheduleArrivalReminders({
+        fileId: `processed-${fileId || Date.now()}`,
+        title: 'Etiqueta procesada',
+        message,
+        pendingOnly: false,
+    });
+}
+
 function _restoreConnectBtn() {
     const btn = document.getElementById('drive-sync-btn');
     if (!btn) return;
@@ -504,7 +530,7 @@ function _showApiKeyInput() {
     row.id        = 'drive-apikey-row';
     row.className = 'ds-apikey-row';
     row.innerHTML = `
-        <input id="drive-apikey-input" type="password" class="ds-apikey-input"
+        <input id="drive-apikey-input" name="driveApiKey" type="password" class="ds-apikey-input"
                placeholder="Google API Key…" autocomplete="off" spellcheck="false" />
         <button id="drive-apikey-save" class="ds-btn ds-btn--save">Guardar</button>`;
 
@@ -549,12 +575,23 @@ function _renderPending() {
     const noPend  = document.getElementById('drive-no-pending');
     if (!list || !section) return;
 
+    const panel = document.getElementById('drive-sync-panel');
+    const pendingCount = _state.pending.length;
+    const label = section.querySelector('.lp-pending-label');
+    section.classList.toggle('has-pending', pendingCount > 0);
+    panel?.classList.toggle('drive-has-pending', _state.mode === 'manual' && pendingCount > 0);
+    if (label) {
+        label.innerHTML = pendingCount > 0
+            ? `<span>Pendientes</span><strong>${pendingCount}</strong>`
+            : `<span>Pendientes</span>`;
+    }
+
     if (_state.mode !== 'manual') { section.style.display = 'none'; return; }
-    section.style.display = 'block';
+    section.style.display = 'flex';
 
     list.querySelectorAll('.ds-pending-row').forEach(r => r.remove());
 
-    if (_state.pending.length === 0) {
+    if (pendingCount === 0) {
         if (noPend) noPend.style.display = 'block';
         return;
     }
@@ -575,19 +612,20 @@ function _renderPending() {
         row.dataset.id = item.id;
         row.innerHTML  = `
             <div class="ds-pending-header">
-                <span class="ds-pending-name" title="${_esc(item.name)}">📄 ${_esc(item.name)}</span>
+                <span class="ds-pending-name" title="${_esc(item.name)}">${_esc(item.name)}</span>
                 <span class="ds-pending-time">
                     ${item.uploadedAt
-                        ? `📅 ${_formatDriveDate(item.uploadedAt)} · 🕐 ${_formatDriveTime(item.uploadedAt)}`
+                        ? `${_formatDriveDate(item.uploadedAt)} · ${_formatDriveTime(item.uploadedAt)}`
                         : _timeStr(item.detectedAt)}
                 </span>
             </div>
             <div class="ds-pending-tags">
                 <span class="ds-tag ds-tag--folder">${_esc(item.folder || 'Drive')}</span>
                 <span class="ds-tag ds-tag--bulk">${item.bulkCount} bulto${item.bulkCount !== 1 ? 's' : ''}</span>
+                <span class="ds-tag ds-tag--pending">Pendiente</span>
             </div>
             <div class="ds-pending-actions">
-                <select class="ds-pending-select">${optHtml}</select>
+                <select class="ds-pending-select" id="drive-pending-picker-${_esc(item.id)}" name="drivePendingPicker">${optHtml}</select>
                 <button class="ds-btn ds-btn--process">Procesar</button>
                 <button class="ds-btn ds-btn--dismiss">✕</button>
             </div>`;
@@ -671,7 +709,7 @@ function _renderExistingPanel() {
 
         // FIX #4: listener registrado UNA SOLA VEZ en el panel
         panel.addEventListener('click', async (e) => {
-            if (e.target.closest('.ds-ep-close'))    { DriveSync.togglePanel(); return; }
+            if (e.target.closest('.ds-ep-close'))    { _state.panelOpen = true; _renderExistingPanel(); return; }
             if (e.target.closest('[data-ep-prev]'))  { DriveSync.changeDay(-1); return; }
             if (e.target.closest('[data-ep-next]'))  { DriveSync.changeDay(1);  return; }
 
@@ -702,11 +740,14 @@ function _renderExistingPanel() {
 
     header.innerHTML = `
         <div class="ds-ep-nav">
-            <button class="ds-ep-btn-nav" data-ep-prev>◀</button>
-            <span class="ds-ep-title">📁 ${dayLabel} — ${count} archivo${count !== 1 ? 's' : ''}</span>
-            <button class="ds-ep-btn-nav" data-ep-next>▶</button>
+            <button class="ds-ep-btn-nav" type="button" data-ep-prev aria-label="Dia anterior">‹</button>
+            <div class="ds-ep-title-wrap">
+                <span class="ds-ep-title">${dayLabel}</span>
+                <span class="ds-ep-subtitle">${count} archivo${count !== 1 ? 's' : ''}</span>
+            </div>
+            <button class="ds-ep-btn-nav" type="button" data-ep-next aria-label="Dia siguiente">›</button>
         </div>
-        <button class="ds-ep-close">×</button>`;
+        <button class="ds-ep-close" type="button" aria-label="Lista de archivos siempre visible" hidden>×</button>`;
 
     // ── Body ──
     const opts    = _getPickerOptions();
@@ -726,17 +767,20 @@ function _renderExistingPanel() {
             const uploadTime = _formatDriveTime(f.createdTime);
             row.innerHTML = `
                 <div class="ds-ep-file-top">
-                    <span class="ds-ep-file-name" title="${_esc(f.name)}">📄 ${_esc(f.name)}</span>
-                    <div class="ds-ep-file-meta">
-                        ${uploadDate ? `<span class="ds-ep-file-date">📅 ${uploadDate}</span>` : ''}
-                        ${uploadTime ? `<span class="ds-ep-file-time">🕐 ${uploadTime}</span>` : ''}
+                    <span class="ds-ep-file-kind">TXT</span>
+                    <div class="ds-ep-file-copy">
+                        <span class="ds-ep-file-name" title="${_esc(f.name)}">${_esc(f.name)}</span>
                         <span class="ds-ep-file-folder">${_esc(f.folder || 'Drive')}</span>
+                    </div>
+                    <div class="ds-ep-file-meta">
+                        ${uploadDate ? `<span class="ds-ep-file-date">${uploadDate}</span>` : ''}
+                        ${uploadTime ? `<span class="ds-ep-file-time">${uploadTime}</span>` : ''}
                     </div>
                 </div>
                 <div class="ds-ep-file-actions">
                     ${isDone
-                        ? `<span class="ds-ep-done-badge">✅ Procesado</span>`
-                        : `<select class="ds-ep-select" data-file-id="${_esc(f.id)}">${optHtml}</select>
+                        ? `<span class="ds-ep-done-badge">Procesado</span>`
+                        : `<select class="ds-ep-select" id="drive-existing-picker-${_esc(f.id)}" name="driveExistingPicker" data-file-id="${_esc(f.id)}">${optHtml}</select>
                            <button class="ds-btn ds-btn--process ds-ep-btn-process"
                                data-file-id="${_esc(f.id)}">Procesar</button>`
                     }
@@ -746,7 +790,8 @@ function _renderExistingPanel() {
         body.replaceChildren(frag);
     }
 
-    panel.style.display = _state.panelOpen ? 'block' : 'none';
+    _state.panelOpen = true;
+    panel.style.display = 'block';
 }
 
 function _updateLabelSourceControls() {
@@ -914,7 +959,7 @@ function _ensureCarrierPrintModal() {
             <div class="carrier-print-body">
                 <aside class="carrier-print-side">
                     <label for="carrierPrintSelect">Archivo PDF</label>
-                    <select id="carrierPrintSelect"></select>
+                    <select id="carrierPrintSelect" name="carrierPrintSelect"></select>
                     <div class="carrier-print-file-list" id="carrierPrintFileList"></div>
                 </aside>
                 <div class="carrier-print-viewer">
@@ -1345,13 +1390,24 @@ function _syncSeenFilesForToday() {
 }
 
 function _hasSeenFile(file) {
-    return _state.knownIds.has(file.id) || _state.knownNames.has(_nameKey(file));
+    if (file?.id) {
+        return _state.knownIds.has(file.id);
+    }
+
+    return _state.knownNames.has(_nameKey(file));
 }
 
 function _rememberSeenFile(file, persist = true) {
-    _state.knownIds.add(file.id);
+    if (file?.id) {
+        _state.knownIds.add(file.id);
+    }
     _state.knownNames.add(_nameKey(file));
     if (persist) _saveSeenFiles();
+}
+
+function _isRecentDriveFile(file, maxAgeMs = DRIVE_CONFIG.RECENT_FIRST_SCAN_ALERT_MS) {
+    const createdTime = Date.parse(file?.createdTime || '');
+    return Number.isFinite(createdTime) && Date.now() - createdTime <= maxAgeMs;
 }
 
 // ─── Matching flexible de carpetas ────────────────────────────────────────────
@@ -2014,7 +2070,18 @@ async function _scan(firstScan) {
         await _scanPdfSources(firstScan);
 
         if (firstScan) {
-            files.forEach(file => _rememberSeenFile(file, false));
+            const recentNewFiles = files.filter(file => !_hasSeenFile(file) && _isRecentDriveFile(file));
+            const recentNewIds = new Set(recentNewFiles.map(file => file.id).filter(Boolean));
+
+            files
+                .filter(file => !recentNewIds.has(file.id))
+                .forEach(file => _rememberSeenFile(file, false));
+
+            for (const file of recentNewFiles) {
+                _rememberSeenFile(file, false);
+                await _handleNewFile(file);
+            }
+
             _saveSeenFiles();
             _state.knownFiles = files;
             _setFileCount(files.length);
@@ -2189,7 +2256,7 @@ async function _handleNewFile(file) {
             fileId: file.id,
             pendingOnly: false,
         });
-        await _processFile({ name: file.name, text, bulkCount, folder: file.folder || 'Drive', picker: DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: file.createdTime || null, autoOutput: true });
+        await _processFile({ fileId: file.id, name: file.name, text, bulkCount, folder: file.folder || 'Drive', picker: DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: file.createdTime || null, autoOutput: true });
     } else {
         _state.pending.push({ id: file.id, name: file.name, folder: file.folder || 'Drive', detectedAt: new Date(), uploadedAt: file.createdTime || null, bulkCount, text });
         _announceDriveArrival({
@@ -2202,7 +2269,7 @@ async function _handleNewFile(file) {
     }
 }
 
-async function _processFile({ name, text, bulkCount, folder, picker, uploadedAt = null, autoOutput = false }) {
+async function _processFile({ fileId = null, name, text, bulkCount, folder, picker, uploadedAt = null, autoOutput = false }) {
     const pickerInput = document.getElementById('picker');
     if (pickerInput) {
         const target = Array.from(pickerInput.options)
@@ -2238,10 +2305,17 @@ async function _processFile({ name, text, bulkCount, folder, picker, uploadedAt 
         console.warn('[DriveSync] window.App no disponible.');
     }
 
-    _state.processed.push({ name, folder, picker, bulkCount: realCount, processedAt: new Date(), uploadedAt });
+    if (fileId) {
+        _state.processedIds.add(fileId);
+        _saveProcessedIds();
+    }
+
+    _state.processed.push({ id: fileId, name, folder, picker, bulkCount: realCount, processedAt: new Date(), uploadedAt });
     _saveProcessedList();
     _renderProcessed();
     _setToast(`✓ "${name}" — ${realCount} pedidos → ${picker}`);
+    _announceDriveProcessed({ name, bulkCount: realCount, picker, fileId, autoOutput });
+    _renderExistingPanel();
     _highlightNewestHistorialItem();
 }
 
@@ -2299,6 +2373,44 @@ function _injectStyles() {
 .ds-hidden { display: none !important; }
 
 #drive-sync-status.drive-sync-status--active { color: #00ac47; font-weight: 600; }
+
+#drive-sync-panel.is-monitoring {
+  border-color: rgba(0,172,71,0.28) !important;
+}
+
+#drive-sync-panel.drive-panel--urgent {
+  border-color: rgba(245,158,11,0.58) !important;
+  box-shadow: 0 0 0 2px rgba(245,158,11,0.14), 0 14px 32px rgba(245,158,11,0.18) !important;
+}
+
+#drive-file-count.has-files {
+  background: rgba(0,172,71,0.13) !important;
+  border-color: rgba(0,172,71,0.22) !important;
+}
+
+#drive-token-clock {
+  grid-column: 2 / 4;
+  justify-self: end;
+}
+
+.lp-drive-folder-btn {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 8px;
+  border: 1px solid rgba(15,23,42,0.10);
+  background: #FFFFFF;
+  color: #315747;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+
+.lp-drive-folder-btn:hover {
+  border-color: rgba(0,172,71,0.28);
+  background: rgba(255,255,255,0.92);
+  color: #007C34;
+}
 
 #drive-sync-toast.drive-sync-toast--error {
   border-left-color: #ea4335 !important;
@@ -2392,41 +2504,44 @@ body.is-dark-mode #drive-mode-manual:hover:not(.is-active) {
 
 /* Botones comunes */
 .ds-btn {
-  padding: 5px 12px; border: none; border-radius: 6px;
-  font-size: 12px; font-weight: 600; cursor: pointer;
-  transition: opacity 0.15s, background 0.15s; white-space: nowrap;
+  padding: 6px 12px; border: none; border-radius: 8px;
+  font-size: 12px; font-weight: 800; cursor: pointer;
+  transition: opacity 0.15s, background 0.15s, transform 0.15s; white-space: nowrap;
 }
 .ds-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .ds-btn--process { background: #00ac47; color: #fff; }
-.ds-btn--process:hover:not(:disabled) { background: #009940; }
+.ds-btn--process:hover:not(:disabled) { background: #009940; transform: translateY(-1px); }
 .ds-btn--dismiss { background: transparent; color: var(--text-muted,#888); border: 1px solid var(--border,#e0e0e0); }
 .ds-btn--dismiss:hover { background: var(--surface-soft, #f5f5f5); }
 .ds-btn--save { background: #1a73e8; color: #fff; }
 .ds-btn--save:hover { background: #1557b0; }
 
 /* Tags */
-.ds-tag { display: inline-block; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 500; }
+.ds-tag { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 800; line-height: 1; text-transform: uppercase; }
 .ds-tag--folder { background: #e8f5e9; color: #2e7d32; }
 .ds-tag--bulk   { background: #e3f2fd; color: #1565c0; }
+.ds-tag--pending { background: rgba(245,158,11,0.16); color: #A16207; }
 
 /* Pendientes */
 .ds-pending-row {
-  background: var(--surface,#fff); border: 1px solid var(--border,#e0e0e0);
-  border-radius: 8px; padding: 10px 12px;
-  display: flex; flex-direction: column; gap: 6px; font-size: 12px;
+  background: #FFFFFF; border: 1px solid rgba(245,158,11,0.24);
+  border-left: 3px solid #F59E0B;
+  border-radius: 10px; padding: 10px 11px;
+  display: flex; flex-direction: column; gap: 8px; font-size: 12px;
+  box-shadow: 0 8px 18px rgba(245,158,11,0.08);
 }
 .ds-pending-header { display: flex; justify-content: space-between; align-items: center; }
 .ds-pending-name {
-  font-weight: 600; color: var(--text,#222);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 155px;
+  font-weight: 800; color: #17301F;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 128px;
 }
-.ds-pending-time { color: var(--text-muted,#888); font-size: 11px; flex-shrink: 0; }
-.ds-pending-tags { display: flex; gap: 4px; }
+.ds-pending-time { color: #6B7A72; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+.ds-pending-tags { display: flex; gap: 5px; flex-wrap: wrap; }
 .ds-pending-actions { display: flex; gap: 6px; align-items: center; }
 .ds-pending-select {
-  flex: 1; padding: 5px 8px; border: 1px solid var(--border,#e0e0e0);
-  border-radius: 6px; font-size: 12px;
-  background: var(--surface,#fff); color: var(--text,#222);
+  flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid rgba(15,23,42,0.12);
+  border-radius: 8px; font-size: 12px;
+  background: #FFFFFF; color: #17301F;
 }
 
 /* Procesados */
@@ -2445,58 +2560,87 @@ body.is-dark-mode #drive-mode-manual:hover:not(.is-active) {
 
 /* Panel archivos existentes */
 .ds-ep-panel {
-  display: none; margin-top: 10px;
-  border: 1px solid rgba(15,23,42,0.10); border-radius: 10px;
-  overflow: hidden; background: rgba(255,255,255,0.96);
+  display: block; margin-top: 10px;
+  border: 1px solid rgba(0,172,71,0.18); border-radius: 12px;
+  overflow: hidden; background: #FFFFFF;
+  box-shadow: 0 10px 24px rgba(15,23,42,0.06);
 }
 .ds-ep-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 12px; background: rgba(0,172,71,0.06);
-  border-bottom: 1px solid rgba(15,23,42,0.08);
+  padding: 9px 10px; background: linear-gradient(180deg, rgba(0,172,71,0.10), rgba(0,172,71,0.04));
+  border-bottom: 1px solid rgba(0,172,71,0.14);
 }
-.ds-ep-nav { display: flex; align-items: center; gap: 6px; }
+.ds-ep-nav { display: grid; grid-template-columns: 28px minmax(0,1fr) 28px; align-items: center; gap: 7px; width: 100%; }
 .ds-ep-btn-nav {
-  background: transparent; border: 1px solid rgba(15,23,42,0.12);
-  border-radius: 4px; cursor: pointer; font-size: 13px;
-  padding: 1px 6px; color: #0F6E56; line-height: 1.4; transition: background 0.15s;
+  display: grid; place-items: center; width: 28px; height: 28px;
+  background: #FFFFFF; border: 1px solid rgba(0,172,71,0.18);
+  border-radius: 8px; cursor: pointer; font-size: 18px;
+  padding: 0; color: #0F6E56; line-height: 1; transition: background 0.15s, border-color 0.15s;
 }
-.ds-ep-btn-nav:hover { background: rgba(15,110,86,0.08); }
+.ds-ep-btn-nav:hover { background: rgba(0,172,71,0.10); border-color: rgba(0,172,71,0.32); }
+.ds-ep-title-wrap {
+  display: flex; flex-direction: column; align-items: center; min-width: 0; gap: 1px;
+}
 .ds-ep-title {
-  font-size: 11px; font-weight: 700; color: #0F6E56;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11px; font-weight: 900; color: #0F6E56;
   text-transform: uppercase; letter-spacing: 0.05em;
 }
+.ds-ep-subtitle {
+  font-size: 10px; font-weight: 800; color: #64746C;
+}
 .ds-ep-close {
+  display: none;
   background: transparent; border: none; cursor: pointer;
   color: #5C6F63; font-size: 16px; line-height: 1; padding: 0 2px; transition: color 0.15s;
 }
 .ds-ep-close:hover { color: #17301F; }
-.ds-ep-body { max-height: 260px; overflow-y: auto; }
+.ds-ep-body { max-height: 280px; overflow-y: auto; padding: 8px; display: grid; gap: 7px; }
 .ds-ep-file-row {
   display: flex; flex-direction: column; gap: 6px;
-  padding: 9px 12px; border-bottom: 1px solid rgba(15,23,42,0.06);
+  min-height: 88px; padding: 9px;
+  border: 1px solid rgba(15,23,42,0.08); border-radius: 10px;
+  background: #FFFFFF;
 }
-.ds-ep-file-row--done { background: rgba(0,172,71,0.04); }
-.ds-ep-file-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.ds-ep-file-row--done {
+  background: rgba(0,172,71,0.055);
+  border-color: rgba(0,172,71,0.16);
+}
+.ds-ep-file-top {
+  display: grid; grid-template-columns: 34px minmax(0,1fr) auto;
+  align-items: center; gap: 8px; min-width: 0;
+}
+.ds-ep-file-kind {
+  display: grid; place-items: center; width: 34px; height: 30px;
+  border-radius: 8px; background: rgba(79,70,229,0.08); color: #4F46E5;
+  font-size: 10px; font-weight: 900;
+}
+.ds-ep-file-copy {
+  display: flex; flex-direction: column; min-width: 0; gap: 2px;
+}
 .ds-ep-file-name {
-  font-size: 12px; font-weight: 600; color: #17301F;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;
+  font-size: 12px; font-weight: 850; color: #17301F;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ds-ep-file-meta {
   display: flex; flex-direction: column; align-items: flex-end;
   gap: 2px; flex-shrink: 0;
 }
-.ds-ep-file-date  { font-size: 10px; color: #5C6F63; font-weight: 600; }
-.ds-ep-file-time  { font-size: 10px; color: #1a73e8; font-weight: 500; }
-.ds-ep-file-folder { font-size: 10px; color: #5C6F63; }
+.ds-ep-file-date  { font-size: 10px; color: #5C6F63; font-weight: 800; }
+.ds-ep-file-time  { font-size: 10px; color: #1a73e8; font-weight: 800; }
+.ds-ep-file-folder {
+  font-size: 10px; color: #5C6F63; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .ds-ep-file-actions { display: flex; gap: 5px; align-items: center; }
 .ds-ep-select {
-  flex: 1; padding: 4px 7px; border: 1px solid rgba(15,23,42,0.12);
-  border-radius: 6px; font-size: 11px; background: #fff; color: #17301F;
+  flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid rgba(15,23,42,0.12);
+  border-radius: 8px; font-size: 11px; background: #fff; color: #17301F;
 }
-.ds-ep-btn-process { padding: 4px 11px !important; font-size: 11px !important; }
+.ds-ep-btn-process { padding: 6px 11px !important; font-size: 11px !important; }
 .ds-ep-done-badge {
-  flex: 1; padding: 4px 10px; background: #e8f5e9; color: #2e7d32;
-  border-radius: 6px; font-size: 11px; font-weight: 600; text-align: center;
+  flex: 1; padding: 6px 10px; background: #E8F8ED; color: #12833D;
+  border-radius: 8px; font-size: 11px; font-weight: 900; text-align: center;
 }
 .ds-ep-empty, .ds-ep-loading {
   padding: 14px; text-align: center; color: #5C6F63; font-size: 12px;
@@ -2848,6 +2992,23 @@ body.is-dark-mode .ds-ep-file-row--done {
   color: #F1F7FF;
 }
 
+body.is-dark-mode #drive-sync-panel.drive-panel--urgent {
+  border-color: rgba(251,191,36,0.58) !important;
+  box-shadow: 0 0 0 2px rgba(251,191,36,0.14), 0 14px 32px rgba(0,0,0,0.32) !important;
+}
+
+body.is-dark-mode #drive-file-count.has-files,
+body.is-dark-mode .lp-drive-folder-btn {
+  background: #13233B !important;
+  border-color: rgba(148,163,184,0.26) !important;
+  color: #DCEBFF !important;
+}
+
+body.is-dark-mode #drive-pending-section.has-pending {
+  background: rgba(245,158,11,0.14) !important;
+  border-color: rgba(251,191,36,0.34) !important;
+}
+
 body.is-dark-mode .ds-ep-header {
   background: #0F1D32;
   border-color: rgba(148,163,184,0.24);
@@ -2865,6 +3026,11 @@ body.is-dark-mode .ds-pending-name,
 body.is-dark-mode .ds-proc-name,
 body.is-dark-mode .ds-ep-file-name {
   color: #F1F7FF;
+}
+
+body.is-dark-mode .ds-ep-file-kind {
+  background: rgba(129,140,248,0.18);
+  color: #C4B5FD;
 }
 
 body.is-dark-mode .ds-pending-time,
@@ -2905,6 +3071,11 @@ body.is-dark-mode .ds-ep-done-badge {
 body.is-dark-mode .ds-tag--bulk {
   background: rgba(59,130,246,0.20);
   color: #93C5FD;
+}
+
+body.is-dark-mode .ds-tag--pending {
+  background: rgba(245,158,11,0.20);
+  color: #FCD34D;
 }
 
 body.is-dark-mode .carrier-print-viewer iframe {
@@ -3086,7 +3257,7 @@ const DriveSync = {
         const idx = _state.pending.findIndex(p => p.id === id);
         if (idx === -1) return;
         const item = _state.pending[idx];
-        await _processFile({ name: item.name, text: item.text, bulkCount: item.bulkCount, folder: item.folder, picker: pickerOverride || DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: item.uploadedAt || null });
+        await _processFile({ fileId: item.id, name: item.name, text: item.text, bulkCount: item.bulkCount, folder: item.folder, picker: pickerOverride || DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: item.uploadedAt || null });
         _state.pending.splice(idx, 1);
         _clearArrivalReminders(id);
         _renderPending();
@@ -3117,8 +3288,8 @@ const DriveSync = {
     stop: _stopPolling,
 
     togglePanel() {
-        _state.panelOpen = !_state.panelOpen;
-        if (_state.panelOpen) _state.offsetDay = 0;
+        _state.panelOpen = true;
+        _state.offsetDay = 0;
         _renderExistingPanel();
     },
 
@@ -3150,9 +3321,7 @@ const DriveSync = {
         try {
             const text      = await _downloadText(fileId);
             const bulkCount = _countBulks(text);
-            await _processFile({ name: file.name, text, bulkCount, folder: file.folder || 'Drive', picker: pickerOverride || DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: file.createdTime || null });
-            _state.processedIds.add(fileId);
-            _saveProcessedIds();
+            await _processFile({ fileId, name: file.name, text, bulkCount, folder: file.folder || 'Drive', picker: pickerOverride || DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: file.createdTime || null });
             _renderExistingPanel();
         } catch {
             _setToast('Error al procesar: ' + file.name, false);

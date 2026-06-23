@@ -20,6 +20,8 @@
             countFlex: document.getElementById('countFlex'),
             countColecta: document.getElementById('countColecta'),
             countTotal: document.getElementById('countTotal'),
+            countTotalFlex: document.getElementById('countTotalFlex'),
+            countTotalColecta: document.getElementById('countTotalColecta'),
             countFlexNd: document.getElementById('countFlexNd'),
             countFlexCancelled: document.getElementById('countFlexCancelled'),
             countColectaNd: document.getElementById('countColectaNd'),
@@ -3296,6 +3298,8 @@
                     setText(App.dom.countFlexCancelled, counts.flexCancelled);
                     setText(App.dom.countColectaNd, counts.colectaNd);
                     setText(App.dom.countColectaCancelled, counts.colectaCancelled);
+                    setText(App.dom.countTotalFlex, counts.flexTotal);
+                    setText(App.dom.countTotalColecta, counts.colectaTotal);
 
                     buttonDefinitions.forEach(({ button, filter: buttonFilter, count }) => {
                         if (!button) {
@@ -3502,8 +3506,9 @@
                     App.state.extractedRows.forEach(row => {
                         const tr = document.createElement('tr');
                         tr.dataset.rowId = row.viewId;
+                        const selectorId = `row-selector-${App.helpers.escapeHtml(row.viewId)}`;
                         tr.innerHTML = `
-                            <td><input class="row-selector" type="checkbox" aria-label="Seleccionar ${App.helpers.escapeHtml(row.numero)}"></td>
+                            <td><input class="row-selector" id="${selectorId}" name="rowSelector" type="checkbox" aria-label="Seleccionar ${App.helpers.escapeHtml(row.numero)}"></td>
                             <td>${App.helpers.escapeHtml(row.proceso)}</td>
                             <td><strong>${App.helpers.escapeHtml(row.numero)}</strong></td>
                             <td>${App.helpers.escapeHtml(row.picker)}</td>
