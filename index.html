@@ -4080,6 +4080,11 @@ header p {
   gap: 9px !important;
 }
 
+.stat-item--total-split {
+  grid-template-columns: 42px minmax(0, 1fr) minmax(82px, 0.82fr) !important;
+  gap: 10px !important;
+}
+
 .stat-item--split .stat-icon {
   width: 40px !important;
   height: 40px !important;
@@ -4134,6 +4139,20 @@ header p {
 .stat-status-chip.is-cancelled strong,
 .stat-status-chip.is-cancelled span {
   color: #BE123C !important;
+}
+
+.stat-total-breakdown {
+  border-left-color: rgba(0,168,71,0.22) !important;
+}
+
+.stat-total-breakdown .stat-status-chip {
+  background: #F1FBF5 !important;
+  border-color: rgba(0,168,71,0.14) !important;
+}
+
+.stat-total-breakdown .stat-status-chip strong,
+.stat-total-breakdown .stat-status-chip span {
+  color: #087A3D !important;
 }
 
 .results-toolbar {
@@ -4426,16 +4445,18 @@ header p {
 .results-actions {
   order: 5 !important;
   display: grid !important;
-  grid-template-columns: minmax(180px, 1fr) minmax(190px, 1fr) minmax(220px, 1.4fr) !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   gap: 9px !important;
   align-items: stretch !important;
+  height: 40px !important;
 }
 
 .zebra-printer-control {
-  height: 38px !important;
-  min-height: 38px !important;
+  width: 100% !important;
+  height: 40px !important;
+  min-height: 40px !important;
   display: grid !important;
-  grid-template-columns: 46px minmax(0, 1fr) !important;
+  grid-template-columns: 54px minmax(0, 1fr) !important;
   align-items: center !important;
   gap: 7px !important;
   padding: 0 8px 0 12px !important;
@@ -4452,7 +4473,7 @@ header p {
 .zebra-printer-control select {
   width: 100% !important;
   min-width: 0 !important;
-  height: 28px !important;
+  height: 30px !important;
   border: 1px solid rgba(15,23,42,0.08) !important;
   border-radius: 6px !important;
   outline: none !important;
@@ -4465,8 +4486,9 @@ header p {
 }
 
 .results-actions .btn {
-  height: 38px !important;
-  min-height: 38px !important;
+  width: 100% !important;
+  height: 40px !important;
+  min-height: 40px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -5030,7 +5052,7 @@ body.is-dark-mode .btn-carrier-walmart {
                             <label class="lp-drive-sound-field">
                                 <span>Archivo nuevo</span>
                                 <div class="lp-drive-sound-control">
-                                    <select class="lp-drive-sound-select" id="drive-sound-arrival">
+                                    <select class="lp-drive-sound-select" id="drive-sound-arrival" name="driveSoundArrival">
                                         <option value="clearBell">Campana clara</option>
                                         <option value="softDouble">Doble suave</option>
                                         <option value="brightPing">Ping brillante</option>
@@ -5057,7 +5079,7 @@ body.is-dark-mode .btn-carrier-walmart {
                             <label class="lp-drive-sound-field">
                                 <span>Aviso 10 min</span>
                                 <div class="lp-drive-sound-control">
-                                    <select class="lp-drive-sound-select" id="drive-sound-warning">
+                                    <select class="lp-drive-sound-select" id="drive-sound-warning" name="driveSoundWarning">
                                         <option value="clearBell">Campana clara</option>
                                         <option value="softDouble">Doble suave</option>
                                         <option value="brightPing">Ping brillante</option>
@@ -5084,7 +5106,7 @@ body.is-dark-mode .btn-carrier-walmart {
                             <label class="lp-drive-sound-field">
                                 <span>Crítico 5 min</span>
                                 <div class="lp-drive-sound-control">
-                                    <select class="lp-drive-sound-select" id="drive-sound-critical">
+                                    <select class="lp-drive-sound-select" id="drive-sound-critical" name="driveSoundCritical">
                                         <option value="clearBell">Campana clara</option>
                                         <option value="softDouble">Doble suave</option>
                                         <option value="brightPing">Ping brillante</option>
@@ -5124,7 +5146,7 @@ body.is-dark-mode .btn-carrier-walmart {
                 <!-- PICKER + TEXTO CARD -->
                 <div class="lp-picker-card is-collapsed">
                     <div id="dropzone" style="display:none;">
-                        <input type="file" id="fileInput" accept=".txt" multiple>
+                        <input type="file" id="fileInput" name="labelFiles" accept=".txt" multiple>
                     </div>
 
                     <div class="lp-collapsible-head">
@@ -5137,7 +5159,7 @@ body.is-dark-mode .btn-carrier-walmart {
                     <div class="input-group">
                         <div class="form-control">
                             <div class="picker-select-row">
-                                <select id="picker" required>
+                                <select id="picker" name="picker" required>
                                     <option value="" disabled selected>Seleccione una opcion...</option>
                                     <option value="bestay">bestay</option>
                                     <option value="eagudelo">eagudelo</option>
@@ -5158,7 +5180,7 @@ body.is-dark-mode .btn-carrier-walmart {
                                     <span class="picker-manager-count" id="pickerManagerCount">6</span>
                                 </div>
                                 <div class="picker-manager-top">
-                                    <input id="newPickerInput" type="text" placeholder="Escribe un usuario">
+                                    <input id="newPickerInput" name="newPicker" type="text" placeholder="Escribe un usuario">
                                     <button class="btn picker-add-btn" id="addPickerBtn" type="button">Agregar</button>
                                 </div>
                                 <div class="picker-manager-note">Debe quedar al menos un usuario disponible.</div>
@@ -5181,7 +5203,7 @@ body.is-dark-mode .btn-carrier-walmart {
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         </label>
                     </div>
-                    <textarea id="textInput" placeholder="Pega aqui el contenido de la etiqueta..."></textarea>
+                    <textarea id="textInput" name="labelText" placeholder="Pega aqui el contenido de la etiqueta..."></textarea>
                     <p id="storageSummary" style="display:none!important;">El historial funciona entre las 07:00 y las 18:00.</p>
 
                     <div class="lp-text-actions">
@@ -5303,6 +5325,22 @@ body.is-dark-mode .btn-carrier-walmart {
                                 <span class="stat-status-chip is-cancelled"><strong id="countColectaCancelled">0</strong><span>Cancel.</span></span>
                             </span>
                         </button>
+                        <button class="stat-item stat-item--total stat-item--total-split" id="totalStatBtn" type="button" data-row-type-filter="all" aria-pressed="true" title="Mostrar todos los pedidos">
+                            <span class="stat-icon stat-icon--asset" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" focusable="false">
+                                    <g fill="none" stroke="#0F8F51" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M50 17 78 31 50 45 22 31 50 17Z"></path>
+                                        <path d="M22 48 50 62 78 48"></path>
+                                        <path d="M22 64 50 78 78 64"></path>
+                                    </g>
+                                </svg>
+                            </span>
+                            <span class="stat-copy"><span class="stat-value" id="countTotal">0</span><span class="stat-label">Total Extraido</span><small>Ver detalle</small></span>
+                            <span class="stat-status-split stat-total-breakdown" aria-label="Total completo de etiquetas Flex y Colecta">
+                                <span class="stat-status-chip"><strong id="countTotalFlex">0</strong><span>Flex</span></span>
+                                <span class="stat-status-chip"><strong id="countTotalColecta">0</strong><span>Colecta</span></span>
+                            </span>
+                        </button>
                         <button class="stat-item stat-item--carrier stat-item--bluexpress" id="bluexpressStatBtn" type="button" data-label-source="bluexpress" aria-pressed="false" title="Ver etiquetas PDF Bluexpress">
                             <span class="stat-icon stat-icon--asset" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" focusable="false">
@@ -5329,23 +5367,11 @@ body.is-dark-mode .btn-carrier-walmart {
                             </span>
                             <span class="stat-copy"><span class="stat-value" id="countWalmart">0</span><span class="stat-label">Walmart</span><small>Ver detalle</small></span>
                         </button>
-                        <button class="stat-item stat-item--total" id="totalStatBtn" type="button" data-row-type-filter="all" aria-pressed="true" title="Mostrar todos los pedidos">
-                            <span class="stat-icon stat-icon--asset" aria-hidden="true">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" focusable="false">
-                                    <g fill="none" stroke="#0F8F51" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M50 17 78 31 50 45 22 31 50 17Z"></path>
-                                        <path d="M22 48 50 62 78 48"></path>
-                                        <path d="M22 64 50 78 78 64"></path>
-                                    </g>
-                                </svg>
-                            </span>
-                            <span class="stat-copy"><span class="stat-value" id="countTotal">0</span><span class="stat-label">Total Extraido</span><small>Ver detalle</small></span>
-                        </button>
                     </div>
 
                     <div class="results-toolbar">
                         <div class="results-search-group">
-                            <input class="search-input" id="searchInput" type="text" placeholder="Buscar pedido en carga actual o historial...">
+                            <input class="search-input" id="searchInput" name="searchOrder" type="text" placeholder="Buscar pedido en carga actual o historial...">
                             <div class="results-history-actions">
                                 <button class="results-history-btn" id="showStoredBtn" type="button" title="Mostrar todo">Mostrar todo</button>
                                 <button class="results-history-btn" id="clearStoredBtn" type="button" title="Limpiar historial">Limpiar</button>
@@ -5375,7 +5401,7 @@ body.is-dark-mode .btn-carrier-walmart {
                                     <th>Revision</th>
                                     <th>Guardado</th>
                                     <th>
-                                        <select class="table-status-filter" id="mainStatusFilter" aria-label="Filtrar estado de pedidos">
+                                        <select class="table-status-filter" id="mainStatusFilter" name="mainStatusFilter" aria-label="Filtrar estado de pedidos">
                                             <option value="">Estado</option>
                                         </select>
                                     </th>
@@ -5422,7 +5448,7 @@ body.is-dark-mode .btn-carrier-walmart {
                         </button>
                         <label class="zebra-printer-control" for="zebraPrinterSelect">
                             <span>Zebra</span>
-                            <select id="zebraPrinterSelect" title="Seleccionar impresora Zebra">
+                            <select id="zebraPrinterSelect" name="zebraPrinter" title="Seleccionar impresora Zebra">
                                 <option value="default">Predeterminada</option>
                                 <option value="zebra02">ZEBRA 02</option>
                                 <option value="zebra05">ZEBRA 05</option>
@@ -5479,7 +5505,7 @@ body.is-dark-mode .btn-carrier-walmart {
                                 Cargar Excel
                             </button>
                             <div class="order-lookup-file" id="orderLookupFileName" aria-live="polite">No hay archivo Excel cargado.</div>
-                            <input type="file" id="orderLookupFileInput" accept=".xlsx">
+                            <input type="file" id="orderLookupFileInput" name="orderLookupExcel" accept=".xlsx">
                         </div>
                     </div>
 
@@ -5491,7 +5517,7 @@ body.is-dark-mode .btn-carrier-walmart {
                             <span>Pedido</span>
                             <div class="ol-search-wrapper">
                                 <svg class="ol-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                                <input id="orderLookupInput" class="order-lookup-search-input" type="text" placeholder="Buscar por número de pedido">
+                                <input id="orderLookupInput" name="orderLookupQuery" class="order-lookup-search-input" type="text" placeholder="Buscar por número de pedido">
                             </div>
                         </label>
 
@@ -5499,13 +5525,13 @@ body.is-dark-mode .btn-carrier-walmart {
                         <div class="ol-filters-row">
                             <label class="order-lookup-filter-field" for="orderLookupStateFilter">
                                 <span>Estado</span>
-                                <select id="orderLookupStateFilter">
+                                <select id="orderLookupStateFilter" name="orderLookupStateFilter">
                                     <option value="">Todos los estados</option>
                                 </select>
                             </label>
                             <label class="order-lookup-filter-field" for="orderLookupRouteFilter">
                                 <span>Ruta</span>
-                                <select id="orderLookupRouteFilter">
+                                <select id="orderLookupRouteFilter" name="orderLookupRouteFilter">
                                     <option value="">Todas las rutas</option>
                                 </select>
                             </label>
@@ -6365,6 +6391,8 @@ body.is-dark-mode .app-message-close:hover {
             countFlex: document.getElementById('countFlex'),
             countColecta: document.getElementById('countColecta'),
             countTotal: document.getElementById('countTotal'),
+            countTotalFlex: document.getElementById('countTotalFlex'),
+            countTotalColecta: document.getElementById('countTotalColecta'),
             countFlexNd: document.getElementById('countFlexNd'),
             countFlexCancelled: document.getElementById('countFlexCancelled'),
             countColectaNd: document.getElementById('countColectaNd'),
@@ -9641,6 +9669,8 @@ body.is-dark-mode .app-message-close:hover {
                     setText(App.dom.countFlexCancelled, counts.flexCancelled);
                     setText(App.dom.countColectaNd, counts.colectaNd);
                     setText(App.dom.countColectaCancelled, counts.colectaCancelled);
+                    setText(App.dom.countTotalFlex, counts.flexTotal);
+                    setText(App.dom.countTotalColecta, counts.colectaTotal);
 
                     buttonDefinitions.forEach(({ button, filter: buttonFilter, count }) => {
                         if (!button) {
@@ -9847,8 +9877,9 @@ body.is-dark-mode .app-message-close:hover {
                     App.state.extractedRows.forEach(row => {
                         const tr = document.createElement('tr');
                         tr.dataset.rowId = row.viewId;
+                        const selectorId = `row-selector-${App.helpers.escapeHtml(row.viewId)}`;
                         tr.innerHTML = `
-                            <td><input class="row-selector" type="checkbox" aria-label="Seleccionar ${App.helpers.escapeHtml(row.numero)}"></td>
+                            <td><input class="row-selector" id="${selectorId}" name="rowSelector" type="checkbox" aria-label="Seleccionar ${App.helpers.escapeHtml(row.numero)}"></td>
                             <td>${App.helpers.escapeHtml(row.proceso)}</td>
                             <td><strong>${App.helpers.escapeHtml(row.numero)}</strong></td>
                             <td>${App.helpers.escapeHtml(row.picker)}</td>
@@ -11014,6 +11045,7 @@ const DRIVE_CONFIG = Object.freeze({
     CARRIER_PRINTED_KEY:  'drive_carrier_printed_labels_v1',
     TOKEN_REFRESH_MARGIN: 5 * 60 * 1000,
     ALERT_ICON:           'https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_48dp.png',
+    RECENT_FIRST_SCAN_ALERT_MS: 45 * 60 * 1000,
     ARRIVAL_REPEAT_DELAYS: Object.freeze([6_000, 15_000]),
     PENDING_REMINDER_DELAYS: Object.freeze([30_000, 90_000, 180_000]),
 });
@@ -11291,7 +11323,7 @@ const _stateRaw = {
     processed:    _loadProcessedList(),
     processedIds: _loadProcessedIds(),
     arrivalAlertTimers: Object.create(null),
-    panelOpen:    false,
+    panelOpen:    true,
     offsetDay:    0,
     _refreshing:  false,
     _scanning:    false,
@@ -11464,6 +11496,21 @@ function _announceDriveArrival({ title, message, fileId, pendingOnly = false }) 
     _scheduleArrivalReminders({ fileId, title, message, pendingOnly });
 }
 
+function _announceDriveProcessed({ name, bulkCount, picker, fileId, autoOutput = false }) {
+    const message = `"${name}" procesado: ${bulkCount} pedido${bulkCount !== 1 ? 's' : ''} para ${picker}${autoOutput ? '. Descarga e impresion automatica ejecutadas.' : '.'}`;
+    _audioAlert('arrival');
+    _setToast(message, true, 12000, true);
+    _notifyNative('Etiqueta procesada', message, `drive-processed-${fileId || Date.now()}`);
+    _showAppAlert('Etiqueta procesada', message, 'warning', 12000);
+    _pulseAlertTargets();
+    _scheduleArrivalReminders({
+        fileId: `processed-${fileId || Date.now()}`,
+        title: 'Etiqueta procesada',
+        message,
+        pendingOnly: false,
+    });
+}
+
 function _restoreConnectBtn() {
     const btn = document.getElementById('drive-sync-btn');
     if (!btn) return;
@@ -11485,7 +11532,7 @@ function _showApiKeyInput() {
     row.id        = 'drive-apikey-row';
     row.className = 'ds-apikey-row';
     row.innerHTML = `
-        <input id="drive-apikey-input" type="password" class="ds-apikey-input"
+        <input id="drive-apikey-input" name="driveApiKey" type="password" class="ds-apikey-input"
                placeholder="Google API Key…" autocomplete="off" spellcheck="false" />
         <button id="drive-apikey-save" class="ds-btn ds-btn--save">Guardar</button>`;
 
@@ -11568,7 +11615,7 @@ function _renderPending() {
                 <span class="ds-tag ds-tag--bulk">${item.bulkCount} bulto${item.bulkCount !== 1 ? 's' : ''}</span>
             </div>
             <div class="ds-pending-actions">
-                <select class="ds-pending-select">${optHtml}</select>
+                <select class="ds-pending-select" id="drive-pending-picker-${_esc(item.id)}" name="drivePendingPicker">${optHtml}</select>
                 <button class="ds-btn ds-btn--process">Procesar</button>
                 <button class="ds-btn ds-btn--dismiss">✕</button>
             </div>`;
@@ -11652,7 +11699,7 @@ function _renderExistingPanel() {
 
         // FIX #4: listener registrado UNA SOLA VEZ en el panel
         panel.addEventListener('click', async (e) => {
-            if (e.target.closest('.ds-ep-close'))    { DriveSync.togglePanel(); return; }
+            if (e.target.closest('.ds-ep-close'))    { _state.panelOpen = true; _renderExistingPanel(); return; }
             if (e.target.closest('[data-ep-prev]'))  { DriveSync.changeDay(-1); return; }
             if (e.target.closest('[data-ep-next]'))  { DriveSync.changeDay(1);  return; }
 
@@ -11687,7 +11734,7 @@ function _renderExistingPanel() {
             <span class="ds-ep-title">📁 ${dayLabel} — ${count} archivo${count !== 1 ? 's' : ''}</span>
             <button class="ds-ep-btn-nav" data-ep-next>▶</button>
         </div>
-        <button class="ds-ep-close">×</button>`;
+        <button class="ds-ep-close" type="button" aria-label="Lista de archivos siempre visible" hidden>×</button>`;
 
     // ── Body ──
     const opts    = _getPickerOptions();
@@ -11717,7 +11764,7 @@ function _renderExistingPanel() {
                 <div class="ds-ep-file-actions">
                     ${isDone
                         ? `<span class="ds-ep-done-badge">✅ Procesado</span>`
-                        : `<select class="ds-ep-select" data-file-id="${_esc(f.id)}">${optHtml}</select>
+                        : `<select class="ds-ep-select" id="drive-existing-picker-${_esc(f.id)}" name="driveExistingPicker" data-file-id="${_esc(f.id)}">${optHtml}</select>
                            <button class="ds-btn ds-btn--process ds-ep-btn-process"
                                data-file-id="${_esc(f.id)}">Procesar</button>`
                     }
@@ -11727,7 +11774,8 @@ function _renderExistingPanel() {
         body.replaceChildren(frag);
     }
 
-    panel.style.display = _state.panelOpen ? 'block' : 'none';
+    _state.panelOpen = true;
+    panel.style.display = 'block';
 }
 
 function _updateLabelSourceControls() {
@@ -11895,7 +11943,7 @@ function _ensureCarrierPrintModal() {
             <div class="carrier-print-body">
                 <aside class="carrier-print-side">
                     <label for="carrierPrintSelect">Archivo PDF</label>
-                    <select id="carrierPrintSelect"></select>
+                    <select id="carrierPrintSelect" name="carrierPrintSelect"></select>
                     <div class="carrier-print-file-list" id="carrierPrintFileList"></div>
                 </aside>
                 <div class="carrier-print-viewer">
@@ -12326,13 +12374,24 @@ function _syncSeenFilesForToday() {
 }
 
 function _hasSeenFile(file) {
-    return _state.knownIds.has(file.id) || _state.knownNames.has(_nameKey(file));
+    if (file?.id) {
+        return _state.knownIds.has(file.id);
+    }
+
+    return _state.knownNames.has(_nameKey(file));
 }
 
 function _rememberSeenFile(file, persist = true) {
-    _state.knownIds.add(file.id);
+    if (file?.id) {
+        _state.knownIds.add(file.id);
+    }
     _state.knownNames.add(_nameKey(file));
     if (persist) _saveSeenFiles();
+}
+
+function _isRecentDriveFile(file, maxAgeMs = DRIVE_CONFIG.RECENT_FIRST_SCAN_ALERT_MS) {
+    const createdTime = Date.parse(file?.createdTime || '');
+    return Number.isFinite(createdTime) && Date.now() - createdTime <= maxAgeMs;
 }
 
 // ─── Matching flexible de carpetas ────────────────────────────────────────────
@@ -12995,7 +13054,18 @@ async function _scan(firstScan) {
         await _scanPdfSources(firstScan);
 
         if (firstScan) {
-            files.forEach(file => _rememberSeenFile(file, false));
+            const recentNewFiles = files.filter(file => !_hasSeenFile(file) && _isRecentDriveFile(file));
+            const recentNewIds = new Set(recentNewFiles.map(file => file.id).filter(Boolean));
+
+            files
+                .filter(file => !recentNewIds.has(file.id))
+                .forEach(file => _rememberSeenFile(file, false));
+
+            for (const file of recentNewFiles) {
+                _rememberSeenFile(file, false);
+                await _handleNewFile(file);
+            }
+
             _saveSeenFiles();
             _state.knownFiles = files;
             _setFileCount(files.length);
@@ -13170,7 +13240,7 @@ async function _handleNewFile(file) {
             fileId: file.id,
             pendingOnly: false,
         });
-        await _processFile({ name: file.name, text, bulkCount, folder: file.folder || 'Drive', picker: DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: file.createdTime || null, autoOutput: true });
+        await _processFile({ fileId: file.id, name: file.name, text, bulkCount, folder: file.folder || 'Drive', picker: DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: file.createdTime || null, autoOutput: true });
     } else {
         _state.pending.push({ id: file.id, name: file.name, folder: file.folder || 'Drive', detectedAt: new Date(), uploadedAt: file.createdTime || null, bulkCount, text });
         _announceDriveArrival({
@@ -13183,7 +13253,7 @@ async function _handleNewFile(file) {
     }
 }
 
-async function _processFile({ name, text, bulkCount, folder, picker, uploadedAt = null, autoOutput = false }) {
+async function _processFile({ fileId = null, name, text, bulkCount, folder, picker, uploadedAt = null, autoOutput = false }) {
     const pickerInput = document.getElementById('picker');
     if (pickerInput) {
         const target = Array.from(pickerInput.options)
@@ -13219,10 +13289,17 @@ async function _processFile({ name, text, bulkCount, folder, picker, uploadedAt 
         console.warn('[DriveSync] window.App no disponible.');
     }
 
-    _state.processed.push({ name, folder, picker, bulkCount: realCount, processedAt: new Date(), uploadedAt });
+    if (fileId) {
+        _state.processedIds.add(fileId);
+        _saveProcessedIds();
+    }
+
+    _state.processed.push({ id: fileId, name, folder, picker, bulkCount: realCount, processedAt: new Date(), uploadedAt });
     _saveProcessedList();
     _renderProcessed();
     _setToast(`✓ "${name}" — ${realCount} pedidos → ${picker}`);
+    _announceDriveProcessed({ name, bulkCount: realCount, picker, fileId, autoOutput });
+    _renderExistingPanel();
     _highlightNewestHistorialItem();
 }
 
@@ -13426,7 +13503,7 @@ body.is-dark-mode #drive-mode-manual:hover:not(.is-active) {
 
 /* Panel archivos existentes */
 .ds-ep-panel {
-  display: none; margin-top: 10px;
+  display: block; margin-top: 10px;
   border: 1px solid rgba(15,23,42,0.10); border-radius: 10px;
   overflow: hidden; background: rgba(255,255,255,0.96);
 }
@@ -13447,11 +13524,12 @@ body.is-dark-mode #drive-mode-manual:hover:not(.is-active) {
   text-transform: uppercase; letter-spacing: 0.05em;
 }
 .ds-ep-close {
+  display: none;
   background: transparent; border: none; cursor: pointer;
   color: #5C6F63; font-size: 16px; line-height: 1; padding: 0 2px; transition: color 0.15s;
 }
 .ds-ep-close:hover { color: #17301F; }
-.ds-ep-body { max-height: 260px; overflow-y: auto; }
+.ds-ep-body { max-height: 240px; overflow-y: auto; }
 .ds-ep-file-row {
   display: flex; flex-direction: column; gap: 6px;
   padding: 9px 12px; border-bottom: 1px solid rgba(15,23,42,0.06);
@@ -14067,7 +14145,7 @@ const DriveSync = {
         const idx = _state.pending.findIndex(p => p.id === id);
         if (idx === -1) return;
         const item = _state.pending[idx];
-        await _processFile({ name: item.name, text: item.text, bulkCount: item.bulkCount, folder: item.folder, picker: pickerOverride || DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: item.uploadedAt || null });
+        await _processFile({ fileId: item.id, name: item.name, text: item.text, bulkCount: item.bulkCount, folder: item.folder, picker: pickerOverride || DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: item.uploadedAt || null });
         _state.pending.splice(idx, 1);
         _clearArrivalReminders(id);
         _renderPending();
@@ -14098,8 +14176,8 @@ const DriveSync = {
     stop: _stopPolling,
 
     togglePanel() {
-        _state.panelOpen = !_state.panelOpen;
-        if (_state.panelOpen) _state.offsetDay = 0;
+        _state.panelOpen = true;
+        _state.offsetDay = 0;
         _renderExistingPanel();
     },
 
@@ -14131,9 +14209,7 @@ const DriveSync = {
         try {
             const text      = await _downloadText(fileId);
             const bulkCount = _countBulks(text);
-            await _processFile({ name: file.name, text, bulkCount, folder: file.folder || 'Drive', picker: pickerOverride || DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: file.createdTime || null });
-            _state.processedIds.add(fileId);
-            _saveProcessedIds();
+            await _processFile({ fileId, name: file.name, text, bulkCount, folder: file.folder || 'Drive', picker: pickerOverride || DRIVE_CONFIG.DEFAULT_PICKER, uploadedAt: file.createdTime || null });
             _renderExistingPanel();
         } catch {
             _setToast('Error al procesar: ' + file.name, false);
