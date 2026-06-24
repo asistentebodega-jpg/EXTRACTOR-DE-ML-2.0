@@ -94,10 +94,10 @@
                 DOWNLOADS_WATCH_FILENAME_PREFIX: 'gridviewsolicituddespacho',
                 DOWNLOADS_WATCH_SUGGESTED_FOLDER: 'NovaPet-Excel',
                 DOWNLOADS_HELPER_BASE_URL: 'http://127.0.0.1:9237',
-                SHEETJS_SCRIPT_SRC: 'vendor/xlsx.full.min.js',
+                SHEETJS_SCRIPT_SRC: 'xlsx.full.min.js',
                 SHEETJS_FALLBACK_SCRIPT_SRCS: Object.freeze([
-                    'vendor/xlsx.full.min.js',
                     'xlsx.full.min.js',
+                    'vendor/xlsx.full.min.js',
                     'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'
                 ]),
                 ZEBRA_BROWSER_PRINT_BASE_URL: 'http://127.0.0.1:9100',
@@ -3306,41 +3306,12 @@
                 async start() {
                     try {
                         await App.downloadsWatcher.startLocalHelper();
-                        return;
                     } catch (helperError) {
+                        App.downloadsWatcher.stop();
                         App.ui.showMessage(
-                            'Para usar Descargas completa, ejecuta Iniciar-Vigilancia-Descargas.bat. Mientras tanto intentare el modo de carpeta del navegador.',
-                            'warning',
-                            { title: 'Descargas', timeout: 8000 }
-                        );
-                    }
-
-                    const directoryHandle = await App.downloadsWatcher.chooseDirectory();
-                    App.runtime.downloadsWatch.mode = 'folder';
-                    App.runtime.downloadsWatch.directoryHandle = directoryHandle;
-                    App.runtime.downloadsWatch.active = true;
-                    App.runtime.downloadsWatch.pendingFiles.clear();
-                    App.downloadsWatcher.getProcessedKeys();
-                    App.downloadsWatcher.setButtonState('active');
-
-                    const initialFiles = await App.downloadsWatcher.scanDirectory();
-                    const newestInitialFile = initialFiles[initialFiles.length - 1] || null;
-                    initialFiles.slice(0, -1).forEach(item => App.downloadsWatcher.markProcessed(item.file));
-
-                    App.downloadsWatcher.schedule();
-                    App.ui.showMessage(
-                        `Vigilando carpeta "${directoryHandle.name}". Se cargaran automaticamente los archivos GridViewSolicitudDespacho nuevos.`,
-                        'success',
-                        { title: 'Descargas' }
-                    );
-
-                    if (newestInitialFile) {
-                        await App.downloadsWatcher.processFile(newestInitialFile.file, { force: true });
-                    } else {
-                        App.ui.showMessage(
-                            'No encontre archivos GridViewSolicitudDespacho en la carpeta seleccionada. Dejare la vigilancia activa para el proximo Excel.',
-                            'info',
-                            { title: 'Descargas' }
+                            'No pude conectar con el ayudante local. Ejecuta Iniciar-Vigilancia-Descargas.bat, deja esa ventana abierta y vuelve a pulsar Vigilar Descargas.',
+                            'error',
+                            { title: 'Descargas', timeout: 10000 }
                         );
                     }
                 },
