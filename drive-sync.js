@@ -367,10 +367,12 @@ function _setFileCount(n) {
     const num = document.getElementById('drive-file-count-num');
     const banner = document.getElementById('drive-alert-banner');
     const bannerText = document.getElementById('drive-alert-text');
+    const dayStatus = document.getElementById('drive-day-status');
     if (!el) return;
     if (n === null || n === undefined) {
         el.style.display = 'none';
         if (banner) banner.hidden = true;
+        dayStatus?.classList.remove('has-files');
         return;
     }
     el.style.display = 'flex';
@@ -378,6 +380,7 @@ function _setFileCount(n) {
     el.title = 'Ver archivos del día';
     el.classList.toggle('has-files', Number(n) > 0);
     const count = Number(n) || 0;
+    dayStatus?.classList.toggle('has-files', count > 0);
     if (banner) {
         banner.hidden = count <= 0;
         banner.classList.toggle('is-active', count > 0);
@@ -2076,7 +2079,7 @@ async function _startPolling() {
     const dayName   = document.getElementById('drive-day-name');
     const dayStatus = document.getElementById('drive-day-status');
     if (dayName)   dayName.textContent   = 'Carpeta: ' + _getDia();
-    if (dayStatus) dayStatus.style.display = 'flex';
+    if (dayStatus) dayStatus.style.display = 'grid';
 
     _setStatus('● Monitoreando en vivo', true);
     _applyMode();
@@ -3239,16 +3242,16 @@ body.is-dark-mode #drive-mode-manual:hover:not(.is-active) {
 
 #drive-alert-banner {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 20px;
+  grid-template-columns: 38px minmax(0, 1fr) 18px;
   align-items: center;
-  gap: 12px;
-  min-height: 64px;
-  padding: 11px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 172, 71, 0.35);
-  background: linear-gradient(180deg, #ECFFF4 0%, #F8FFFB 100%);
+  gap: 10px;
+  min-height: 42px;
+  padding: 0;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
   color: #007C34;
-  box-shadow: 0 8px 20px rgba(0, 172, 71, 0.10);
+  box-shadow: none;
   cursor: pointer;
 }
 
@@ -3259,8 +3262,8 @@ body.is-dark-mode #drive-mode-manual:hover:not(.is-active) {
 .drive-alert-icon {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
   background: #00A846;
   color: #FFFFFF;
@@ -3274,28 +3277,69 @@ body.is-dark-mode #drive-mode-manual:hover:not(.is-active) {
 }
 
 .drive-alert-copy strong {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 950;
   letter-spacing: .02em;
   color: #007C34;
 }
 
 .drive-alert-copy small {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 650;
   color: #344E41;
 }
 
 .drive-alert-arrow {
-  font-size: 27px;
+  font-size: 24px;
   font-weight: 700;
   color: #007C34;
   line-height: 1;
 }
 
 #drive-day-status {
+  display: none;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 9px !important;
   min-height: 64px !important;
-  padding: 12px 13px !important;
+  padding: 11px 12px !important;
+  background: #FFFFFF !important;
+  border-color: #E1E9E4 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.035) !important;
+}
+
+#drive-day-status.has-files {
+  background: linear-gradient(180deg, #F1FFF6 0%, #FFFFFF 100%) !important;
+  border-color: rgba(0, 172, 71, 0.30) !important;
+  box-shadow: 0 8px 18px rgba(0, 172, 71, 0.08) !important;
+}
+
+.drive-day-folder-row {
+  display: grid !important;
+  grid-template-columns: 32px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+#drive-alert-banner:not([hidden]) + .drive-day-folder-row {
+  padding-top: 9px !important;
+  border-top: 1px solid rgba(0, 172, 71, 0.14) !important;
+}
+
+.drive-day-copy {
+  min-width: 0 !important;
+}
+
+#drive-day-name {
+  font-weight: 900 !important;
+  color: var(--text) !important;
+  line-height: 1.12 !important;
+}
+
+.drive-day-subtitle {
+  font-size: 11px !important;
+  color: var(--text-muted) !important;
+  line-height: 1.2 !important;
 }
 
 #drive-day-icon {
@@ -3424,9 +3468,27 @@ body.is-dark-mode #drive-mode-manual:hover:not(.is-active) {
 }
 
 body.is-dark-mode #drive-alert-banner {
-  background: linear-gradient(180deg, rgba(16,185,129,0.18), rgba(16,185,129,0.08)) !important;
-  border-color: rgba(52, 211, 153, 0.34) !important;
+  background: transparent !important;
+  border-color: transparent !important;
   color: #D1FAE5 !important;
+  box-shadow: none !important;
+}
+
+body.is-dark-mode #drive-day-status.has-files {
+  background: linear-gradient(180deg, rgba(16,185,129,0.15), rgba(15,23,42,0.42)) !important;
+  border-color: rgba(52, 211, 153, 0.34) !important;
+}
+
+body.is-dark-mode #drive-alert-banner:not([hidden]) + .drive-day-folder-row {
+  border-top-color: rgba(52, 211, 153, 0.22) !important;
+}
+
+body.is-dark-mode #drive-day-name {
+  color: #F1F7FF !important;
+}
+
+body.is-dark-mode .drive-day-subtitle {
+  color: #B8C7DC !important;
 }
 
 body.is-dark-mode .drive-alert-icon {
