@@ -138,8 +138,8 @@
 /* Fila de modo: solo layout, sin tocar background/color (los maneja JS) */
 .panel-left .lp-drive-modes {
   display: flex;
-  gap: 5px;
-  margin-bottom: 7px;
+  gap: 2px;
+  margin-bottom: 8px;
 }
 .panel-left #drive-mode-auto,
 .panel-left #drive-mode-manual {
@@ -154,9 +154,17 @@
   text-align: left !important;
   margin: 0 0 9px 0 !important;
 }
+.panel-left .drive-user-action-row #drive-mode-desc {
+  margin: 0 !important;
+}
 .panel-left .lp-drive-btns-row {
   display: flex;
   gap: 6px;
+}
+.panel-left .drive-user-action-row .lp-drive-btns-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0 !important;
 }
 .panel-left #drive-pending-section .lp-pending-label {
   font-size: 10px;
