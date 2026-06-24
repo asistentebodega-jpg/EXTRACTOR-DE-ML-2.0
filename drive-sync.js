@@ -1605,6 +1605,19 @@ function _sortDriveFilesNewestFirst(files) {
     });
 }
 
+function _driveFilesChanged(prevFiles = [], nextFiles = []) {
+    if (prevFiles.length !== nextFiles.length) return true;
+    return nextFiles.some((file, index) => {
+        const prev = prevFiles[index];
+        return !prev
+            || prev.id !== file.id
+            || prev.name !== file.name
+            || prev.folder !== file.folder
+            || prev.createdTime !== file.createdTime
+            || prev.modifiedTime !== file.modifiedTime;
+    });
+}
+
 function _sortPendingNewestFirst(items) {
     return [...items].sort((a, b) => {
         const at = new Date(a.uploadedAt || a.detectedAt || 0).getTime();
@@ -2173,12 +2186,17 @@ async function _scan(firstScan) {
         }
 
         const newFiles = files.filter(f => !_hasSeenFile(f));
+        const listChanged = _driveFilesChanged(_state.knownFiles, files);
         for (const file of newFiles) {
             _rememberSeenFile(file);
             await _handleNewFile(file);
         }
         _state.knownFiles = files;
         _setFileCount(files.length);
+        _setStatus(`● Monitoreando — ${files.length} existentes`, true);
+        if (listChanged || newFiles.length > 0) {
+            _renderExistingPanel();
+        }
 
     } catch (err) {
         console.error('[DriveSync] _scan error:', err);
