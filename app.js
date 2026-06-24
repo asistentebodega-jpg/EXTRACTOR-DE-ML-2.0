@@ -93,6 +93,7 @@
                 DOWNLOADS_WATCH_STABLE_MS: 1800,
                 DOWNLOADS_WATCH_FILENAME_PREFIX: 'gridviewsolicituddespacho',
                 DOWNLOADS_WATCH_SUGGESTED_FOLDER: 'NovaPet-Excel',
+                DOWNLOADS_HELPER_BASE_URL: 'http://127.0.0.1:9237',
                 SHEETJS_SCRIPT_SRC: 'vendor/xlsx.full.min.js',
                 SHEETJS_FALLBACK_SCRIPT_SRCS: Object.freeze([
                     'vendor/xlsx.full.min.js',
@@ -176,10 +177,12 @@
                 downloadsWatch: {
                     active: false,
                     processing: false,
+                    mode: '',
                     directoryHandle: null,
                     timer: null,
                     pendingFiles: new Map(),
-                    processedKeys: new Set()
+                    processedKeys: new Set(),
+                    helperLastKey: ''
                 },
                 clockTimeFormatter: new Intl.DateTimeFormat('es-CL', {
                     hour: '2-digit',
@@ -2952,6 +2955,53 @@
                     return typeof window.showDirectoryPicker === 'function';
                 },
 
+                getHelperUrl(path = '') {
+                    return `${App.config.DOWNLOADS_HELPER_BASE_URL}${path}`;
+                },
+
+                async fetchHelperStatus() {
+                    const response = await fetch(App.downloadsWatcher.getHelperUrl('/status'), {
+                        cache: 'no-store'
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Helper local no disponible (${response.status}).`);
+                    }
+
+                    return response.json();
+                },
+
+                async fetchLatestFromHelper() {
+                    const since = App.runtime.downloadsWatch.helperLastKey;
+                    const path = since
+                        ? `/latest-excel?since=${encodeURIComponent(since)}`
+                        : '/latest-excel';
+                    const response = await fetch(App.downloadsWatcher.getHelperUrl(path), {
+                        cache: 'no-store'
+                    });
+
+                    if (response.status === 204) {
+                        return null;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(`No se pudo consultar Descargas (${response.status}).`);
+                    }
+
+                    const fileName = decodeURIComponent(
+                        response.headers.get('X-NovaPet-File-Name') || 'GridViewSolicitudDespacho.xlsx'
+                    );
+                    const helperKey = response.headers.get('X-NovaPet-File-Key') || '';
+                    const lastModified = Number(response.headers.get('X-NovaPet-File-Modified')) || Date.now();
+                    const blob = await response.blob();
+                    const file = new File([blob], fileName, {
+                        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        lastModified
+                    });
+
+                    return { file, helperKey };
+                },
+
                 getStorage() {
                     return App.runtime.storage || window.localStorage || null;
                 },
@@ -3046,10 +3096,13 @@
                             : 'Selecciona la subcarpeta NovaPet-Excel dentro de Descargas'
                     );
 
+                    const activeLabel = App.runtime.downloadsWatch.mode === 'helper'
+                        ? 'Vigilando Descargas'
+                        : 'Vigilando carpeta';
                     const label = state === 'processing'
                         ? 'Cargando Excel'
                         : active
-                            ? 'Vigilando carpeta'
+                            ? activeLabel
                             : 'Vigilar carpeta';
 
                     button.innerHTML = `
@@ -3145,6 +3198,21 @@
                     App.downloadsWatcher.persistProcessedKeys();
                 },
 
+                getHelperProcessedKey(helperKey) {
+                    return helperKey ? `helper|${helperKey}` : '';
+                },
+
+                markHelperProcessed(helperKey) {
+                    const key = App.downloadsWatcher.getHelperProcessedKey(helperKey);
+                    if (!key) {
+                        return;
+                    }
+
+                    App.downloadsWatcher.getProcessedKeys().add(key);
+                    App.runtime.downloadsWatch.helperLastKey = helperKey;
+                    App.downloadsWatcher.persistProcessedKeys();
+                },
+
                 async processFile(file, options = {}) {
                     const { force = false } = options;
                     if (!force && App.downloadsWatcher.getProcessedKeys().has(App.downloadsWatcher.buildFileKey(file))) {
@@ -3179,6 +3247,11 @@
                         return;
                     }
 
+                    if (App.runtime.downloadsWatch.mode === 'helper') {
+                        await App.downloadsWatcher.tickHelper();
+                        return;
+                    }
+
                     try {
                         const files = await App.downloadsWatcher.scanDirectory();
                         const readyFiles = App.downloadsWatcher.getReadyNewFiles(files);
@@ -3195,6 +3268,33 @@
                     }
                 },
 
+                async tickHelper() {
+                    try {
+                        const latest = await App.downloadsWatcher.fetchLatestFromHelper();
+                        if (!latest?.file) {
+                            return;
+                        }
+
+                        const processedKey = App.downloadsWatcher.getHelperProcessedKey(latest.helperKey);
+                        if (processedKey && App.downloadsWatcher.getProcessedKeys().has(processedKey)) {
+                            App.runtime.downloadsWatch.helperLastKey = latest.helperKey;
+                            return;
+                        }
+
+                        const loaded = await App.downloadsWatcher.processFile(latest.file, { force: true });
+                        if (loaded) {
+                            App.downloadsWatcher.markHelperProcessed(latest.helperKey);
+                        }
+                    } catch (error) {
+                        App.downloadsWatcher.stop();
+                        App.ui.reportError(
+                            error,
+                            'Se perdio la conexion con el ayudante local de Descargas. Ejecuta nuevamente Iniciar-Vigilancia-Descargas.bat.',
+                            'Descargas'
+                        );
+                    }
+                },
+
                 schedule() {
                     window.clearInterval(App.runtime.downloadsWatch.timer);
                     App.runtime.downloadsWatch.timer = window.setInterval(
@@ -3204,7 +3304,19 @@
                 },
 
                 async start() {
+                    try {
+                        await App.downloadsWatcher.startLocalHelper();
+                        return;
+                    } catch (helperError) {
+                        App.ui.showMessage(
+                            'Para usar Descargas completa, ejecuta Iniciar-Vigilancia-Descargas.bat. Mientras tanto intentare el modo de carpeta del navegador.',
+                            'warning',
+                            { title: 'Descargas', timeout: 8000 }
+                        );
+                    }
+
                     const directoryHandle = await App.downloadsWatcher.chooseDirectory();
+                    App.runtime.downloadsWatch.mode = 'folder';
                     App.runtime.downloadsWatch.directoryHandle = directoryHandle;
                     App.runtime.downloadsWatch.active = true;
                     App.runtime.downloadsWatch.pendingFiles.clear();
@@ -3233,11 +3345,34 @@
                     }
                 },
 
+                async startLocalHelper() {
+                    const status = await App.downloadsWatcher.fetchHelperStatus();
+                    if (!status?.ok) {
+                        throw new Error('El ayudante local no respondio correctamente.');
+                    }
+
+                    App.runtime.downloadsWatch.mode = 'helper';
+                    App.runtime.downloadsWatch.directoryHandle = null;
+                    App.runtime.downloadsWatch.active = true;
+                    App.runtime.downloadsWatch.pendingFiles.clear();
+                    App.runtime.downloadsWatch.helperLastKey = '';
+                    App.downloadsWatcher.getProcessedKeys();
+                    App.downloadsWatcher.setButtonState('active');
+                    App.downloadsWatcher.schedule();
+                    App.ui.showMessage(
+                        `Vigilando Descargas real: ${status.downloadsPath || 'carpeta Descargas'}.`,
+                        'success',
+                        { title: 'Descargas' }
+                    );
+                    await App.downloadsWatcher.tickHelper();
+                },
+
                 stop() {
                     window.clearInterval(App.runtime.downloadsWatch.timer);
                     App.runtime.downloadsWatch.timer = null;
                     App.runtime.downloadsWatch.active = false;
                     App.runtime.downloadsWatch.processing = false;
+                    App.runtime.downloadsWatch.mode = '';
                     App.runtime.downloadsWatch.pendingFiles.clear();
                     App.downloadsWatcher.setButtonState('idle');
                 },
