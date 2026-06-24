@@ -57,6 +57,7 @@
             messageStack: document.getElementById('messageStack'),
             orderLookupFileInput: document.getElementById('orderLookupFileInput'),
             orderLookupLoadBtn: document.getElementById('orderLookupLoadBtn'),
+            downloadsWatchBtn: document.getElementById('downloadsWatchBtn'),
             orderLookupFileName: document.getElementById('orderLookupFileName'),
             orderLookupInput: document.getElementById('orderLookupInput'),
             orderLookupSearchBtn: document.getElementById('orderLookupSearchBtn'),
@@ -84,9 +85,14 @@
                 PICKERS_STORAGE_KEY: 'novapet_meli_picker_options_v1',
                 OUTSIDE_HOURS_HISTORY_KEY: 'novapet_meli_after_hours_history_v1',
                 ORDER_LOOKUP_STORAGE_KEY: 'novapet_meli_order_lookup_v1',
+                DOWNLOADS_WATCH_STORAGE_KEY: 'novapet_meli_downloads_watch_v1',
                 MANUAL_STATUS_STORAGE_KEY: 'novapet_meli_manual_status_v1',
                 ZEBRA_PRINTER_STORAGE_KEY: 'novapet_meli_zebra_printer_v1',
                 UI_THEME_STORAGE_KEY: 'novapet_meli_ui_theme_v1',
+                DOWNLOADS_WATCH_INTERVAL_MS: 4000,
+                DOWNLOADS_WATCH_STABLE_MS: 1800,
+                DOWNLOADS_WATCH_FILENAME_PREFIX: 'gridviewsolicituddespacho',
+                DOWNLOADS_WATCH_SUGGESTED_FOLDER: 'NovaPet-Excel',
                 SHEETJS_SCRIPT_SRC: 'vendor/xlsx.full.min.js',
                 SHEETJS_FALLBACK_SCRIPT_SRCS: Object.freeze([
                     'vendor/xlsx.full.min.js',
@@ -167,6 +173,14 @@
                 storage: null,
                 defaultPickerOptions: [],
                 sheetJsLoadPromise: null,
+                downloadsWatch: {
+                    active: false,
+                    processing: false,
+                    directoryHandle: null,
+                    timer: null,
+                    pendingFiles: new Map(),
+                    processedKeys: new Set()
+                },
                 clockTimeFormatter: new Intl.DateTimeFormat('es-CL', {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -2806,6 +2820,7 @@
                     App.orderLookup.populateRouteFilter(scopedRows);
                     App.orderLookup.applyFilters({ showWarningOnEmptySource: false, scopedRows });
                     App.table.refreshStatusColumn();
+                    App.ui.updateResultsMeta(`Excel cargado: ${file.name} (${App.state.orderLookupRows.length} pedido(s) de Mercado Libre).`);
 
                     let message = `Archivo "${file.name}" cargado correctamente. Se detectaron ${App.state.orderLookupRows.length} pedidos de Mercado Libre.`;
                     let messageType = 'success';
@@ -2930,6 +2945,320 @@
                         120
                     );
                 },
+            },
+
+            downloadsWatcher: {
+                isSupported() {
+                    return typeof window.showDirectoryPicker === 'function';
+                },
+
+                getStorage() {
+                    return App.runtime.storage || window.localStorage || null;
+                },
+
+                getProcessedKeys() {
+                    if (App.runtime.downloadsWatch.processedKeys.size > 0) {
+                        return App.runtime.downloadsWatch.processedKeys;
+                    }
+
+                    const storage = App.downloadsWatcher.getStorage();
+                    if (!storage) {
+                        return App.runtime.downloadsWatch.processedKeys;
+                    }
+
+                    try {
+                        const parsed = JSON.parse(storage.getItem(App.config.DOWNLOADS_WATCH_STORAGE_KEY) || '[]');
+                        App.runtime.downloadsWatch.processedKeys = new Set(Array.isArray(parsed) ? parsed : []);
+                    } catch (error) {
+                        App.runtime.downloadsWatch.processedKeys = new Set();
+                    }
+
+                    return App.runtime.downloadsWatch.processedKeys;
+                },
+
+                persistProcessedKeys() {
+                    const storage = App.downloadsWatcher.getStorage();
+                    if (!storage) {
+                        return;
+                    }
+
+                    const keys = Array.from(App.runtime.downloadsWatch.processedKeys).slice(-120);
+                    App.runtime.downloadsWatch.processedKeys = new Set(keys);
+                    storage.setItem(App.config.DOWNLOADS_WATCH_STORAGE_KEY, JSON.stringify(keys));
+                },
+
+                buildFileKey(file) {
+                    return `${file.name}|${file.size}|${file.lastModified}`;
+                },
+
+                normalizeFileName(value) {
+                    return String(value || '')
+                        .trim()
+                        .toLowerCase()
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '');
+                },
+
+                isCandidateName(fileName) {
+                    const normalizedName = App.downloadsWatcher.normalizeFileName(fileName);
+                    if (!normalizedName.endsWith('.xlsx')) {
+                        return false;
+                    }
+
+                    if (
+                        normalizedName.startsWith('~$')
+                        || normalizedName.endsWith('.tmp')
+                        || normalizedName.endsWith('.crdownload')
+                    ) {
+                        return false;
+                    }
+
+                    return normalizedName.startsWith(`${App.config.DOWNLOADS_WATCH_FILENAME_PREFIX} -`);
+                },
+
+                async ensurePermission(directoryHandle) {
+                    if (!directoryHandle?.queryPermission || !directoryHandle?.requestPermission) {
+                        return true;
+                    }
+
+                    const options = { mode: 'read' };
+                    if (await directoryHandle.queryPermission(options) === 'granted') {
+                        return true;
+                    }
+
+                    return await directoryHandle.requestPermission(options) === 'granted';
+                },
+
+                setButtonState(state = 'idle', detail = '') {
+                    const button = App.dom.downloadsWatchBtn;
+                    if (!button) {
+                        return;
+                    }
+
+                    const active = state === 'active' || state === 'processing';
+                    button.classList.toggle('is-active', active);
+                    button.classList.toggle('is-processing', state === 'processing');
+                    button.disabled = state === 'processing';
+                    button.setAttribute('aria-pressed', String(active));
+                    button.title = detail || (
+                        active
+                            ? 'Detener vigilancia de la carpeta Excel'
+                            : 'Selecciona la subcarpeta NovaPet-Excel dentro de Descargas'
+                    );
+
+                    const label = state === 'processing'
+                        ? 'Cargando Excel'
+                        : active
+                            ? 'Vigilando carpeta'
+                            : 'Vigilar carpeta';
+
+                    button.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h5l2 3h11v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v2"/></svg>
+                        ${label}
+                    `;
+                },
+
+                async chooseDirectory() {
+                    if (!App.downloadsWatcher.isSupported()) {
+                        throw new Error('Tu navegador no permite vigilar carpetas desde esta pagina. Usa Chrome o Edge actualizado.');
+                    }
+
+                    App.ui.showMessage(
+                        `Selecciona la subcarpeta "${App.config.DOWNLOADS_WATCH_SUGGESTED_FOLDER}" dentro de Descargas. No selecciones Descargas completo porque el navegador puede bloquearla.`,
+                        'info',
+                        { title: 'Carpeta Excel', timeout: 9000 }
+                    );
+
+                    let directoryHandle;
+                    try {
+                        directoryHandle = await window.showDirectoryPicker({
+                            id: 'novapet-excel-downloads',
+                            mode: 'read',
+                            startIn: 'downloads'
+                        });
+                    } catch (error) {
+                        if (error?.name === 'AbortError') {
+                            throw error;
+                        }
+                        directoryHandle = await window.showDirectoryPicker({
+                            id: 'novapet-excel-downloads',
+                            mode: 'read'
+                        });
+                    }
+
+                    if (!await App.downloadsWatcher.ensurePermission(directoryHandle)) {
+                        throw new Error('No se autorizo el acceso de lectura a la carpeta seleccionada.');
+                    }
+
+                    return directoryHandle;
+                },
+
+                async scanDirectory() {
+                    const directoryHandle = App.runtime.downloadsWatch.directoryHandle;
+                    if (!directoryHandle) {
+                        return [];
+                    }
+
+                    const files = [];
+                    for await (const [name, handle] of directoryHandle.entries()) {
+                        if (handle.kind !== 'file' || !App.downloadsWatcher.isCandidateName(name)) {
+                            continue;
+                        }
+
+                        try {
+                            const file = await handle.getFile();
+                            if (file.size > 0 && App.downloadsWatcher.isCandidateName(file.name)) {
+                                files.push({ file, handle, key: App.downloadsWatcher.buildFileKey(file) });
+                            }
+                        } catch (error) {
+                            console.warn('[App] No se pudo leer archivo de Descargas:', name, error);
+                        }
+                    }
+
+                    return files.sort((a, b) => a.file.lastModified - b.file.lastModified);
+                },
+
+                getReadyNewFiles(files) {
+                    const now = Date.now();
+                    const processedKeys = App.downloadsWatcher.getProcessedKeys();
+                    return files.filter(item => {
+                        if (processedKeys.has(item.key)) {
+                            return false;
+                        }
+
+                        if (now - item.file.lastModified < App.config.DOWNLOADS_WATCH_STABLE_MS) {
+                            return false;
+                        }
+
+                        const previous = App.runtime.downloadsWatch.pendingFiles.get(item.key);
+                        App.runtime.downloadsWatch.pendingFiles.set(item.key, {
+                            size: item.file.size,
+                            lastSeenAt: now
+                        });
+
+                        return Boolean(previous && previous.size === item.file.size);
+                    });
+                },
+
+                markProcessed(file) {
+                    App.downloadsWatcher.getProcessedKeys().add(App.downloadsWatcher.buildFileKey(file));
+                    App.downloadsWatcher.persistProcessedKeys();
+                },
+
+                async processFile(file, options = {}) {
+                    const { force = false } = options;
+                    if (!force && App.downloadsWatcher.getProcessedKeys().has(App.downloadsWatcher.buildFileKey(file))) {
+                        return false;
+                    }
+
+                    App.runtime.downloadsWatch.processing = true;
+                    App.downloadsWatcher.setButtonState('processing', `Cargando ${file.name}`);
+
+                    try {
+                        await App.orderLookup.loadWorkbook(file);
+                        App.downloadsWatcher.markProcessed(file);
+                        App.notifications.record({
+                            title: 'Excel automatico',
+                            message: `Se cargo automaticamente ${file.name}.`,
+                            type: 'success'
+                        });
+                        return true;
+                    } catch (error) {
+                        App.ui.reportError(error, `No fue posible cargar automaticamente "${file.name}".`, 'Descargas');
+                        return false;
+                    } finally {
+                        App.runtime.downloadsWatch.processing = false;
+                        if (App.runtime.downloadsWatch.active) {
+                            App.downloadsWatcher.setButtonState('active');
+                        }
+                    }
+                },
+
+                async tick() {
+                    if (!App.runtime.downloadsWatch.active || App.runtime.downloadsWatch.processing) {
+                        return;
+                    }
+
+                    try {
+                        const files = await App.downloadsWatcher.scanDirectory();
+                        const readyFiles = App.downloadsWatcher.getReadyNewFiles(files);
+
+                        for (const item of readyFiles) {
+                            if (!App.runtime.downloadsWatch.active) {
+                                break;
+                            }
+                            await App.downloadsWatcher.processFile(item.file);
+                        }
+                    } catch (error) {
+                        App.downloadsWatcher.stop();
+                        App.ui.reportError(error, 'Se detuvo la vigilancia de Descargas.', 'Descargas');
+                    }
+                },
+
+                schedule() {
+                    window.clearInterval(App.runtime.downloadsWatch.timer);
+                    App.runtime.downloadsWatch.timer = window.setInterval(
+                        () => App.downloadsWatcher.tick(),
+                        App.config.DOWNLOADS_WATCH_INTERVAL_MS
+                    );
+                },
+
+                async start() {
+                    const directoryHandle = await App.downloadsWatcher.chooseDirectory();
+                    App.runtime.downloadsWatch.directoryHandle = directoryHandle;
+                    App.runtime.downloadsWatch.active = true;
+                    App.runtime.downloadsWatch.pendingFiles.clear();
+                    App.downloadsWatcher.getProcessedKeys();
+                    App.downloadsWatcher.setButtonState('active');
+
+                    const initialFiles = await App.downloadsWatcher.scanDirectory();
+                    const newestInitialFile = initialFiles[initialFiles.length - 1] || null;
+                    initialFiles.slice(0, -1).forEach(item => App.downloadsWatcher.markProcessed(item.file));
+
+                    App.downloadsWatcher.schedule();
+                    App.ui.showMessage(
+                        `Vigilando carpeta "${directoryHandle.name}". Se cargaran automaticamente los archivos GridViewSolicitudDespacho nuevos.`,
+                        'success',
+                        { title: 'Descargas' }
+                    );
+
+                    if (newestInitialFile) {
+                        await App.downloadsWatcher.processFile(newestInitialFile.file, { force: true });
+                    } else {
+                        App.ui.showMessage(
+                            'No encontre archivos GridViewSolicitudDespacho en la carpeta seleccionada. Dejare la vigilancia activa para el proximo Excel.',
+                            'info',
+                            { title: 'Descargas' }
+                        );
+                    }
+                },
+
+                stop() {
+                    window.clearInterval(App.runtime.downloadsWatch.timer);
+                    App.runtime.downloadsWatch.timer = null;
+                    App.runtime.downloadsWatch.active = false;
+                    App.runtime.downloadsWatch.processing = false;
+                    App.runtime.downloadsWatch.pendingFiles.clear();
+                    App.downloadsWatcher.setButtonState('idle');
+                },
+
+                async toggle() {
+                    if (App.runtime.downloadsWatch.active) {
+                        App.downloadsWatcher.stop();
+                        App.ui.showMessage('Vigilancia de Descargas detenida.', 'info', { title: 'Descargas' });
+                        return;
+                    }
+
+                    try {
+                        await App.downloadsWatcher.start();
+                    } catch (error) {
+                        if (error?.name === 'AbortError') {
+                            return;
+                        }
+                        App.downloadsWatcher.stop();
+                        App.ui.reportError(error, 'No fue posible activar la vigilancia de Descargas.', 'Descargas');
+                    }
+                }
             },
 
             table: {
@@ -4447,6 +4776,10 @@
                         App.dom.orderLookupFileInput?.click();
                     });
 
+                    App.dom.downloadsWatchBtn?.addEventListener('click', () => {
+                        App.downloadsWatcher.toggle();
+                    });
+
                     App.dom.orderLookupFileInput?.addEventListener('change', async event => {
                         const file = event.target.files?.[0];
                         if (!file) {
@@ -4461,6 +4794,7 @@
 
                         try {
                             await App.orderLookup.loadWorkbook(file);
+                            App.downloadsWatcher.markProcessed(file);
                         } catch (error) {
                             App.ui.reportError(error, 'No fue posible cargar el archivo Excel.', 'Consulta Pedido');
                             App.orderLookup.resetData();
